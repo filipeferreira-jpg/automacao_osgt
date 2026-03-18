@@ -1,26 +1,35 @@
 # Ambientes virtuais
+.venv/
 venv/
 env/
 .venv
 
-# Arquivos Python compilados
+# Arquivos Python compilados/cache
 __pycache__/
 *.py[cod]
 
-# Variáveis de ambiente
+# Variáveis de ambiente / segredos
 .env
+*.env
 
-# Logs
+# Logs e saídas geradas
 *.log
-*.png
-*.jpeg
-*.jpg
+logs/
+output/
+screenshots/
+.png
+.jpg
+.gif
+.jpeg
 
-# IDE
+# IDE / sistema
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db
+Desktop.ini
 
 # Banco de dados
 *.db
 *.sqlite
+*.sqlite3
