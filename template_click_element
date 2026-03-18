@@ -1,0 +1,17 @@
+# ============================================================
+# CÉLULA X: CLICAR EM [NOME DO ELEMENTO]
+# ============================================================
+print(f"\n📍 Clicando em '[NOME]'...")
+
+sucesso = auto_ocr.clicar_em_texto(
+    '[TEXTO A BUSCAR]',
+    tipo_clique='single',  # ou 'double', 'right'
+    pausar=2,
+    confianca_minima=25,
+    tentativas=3
+)
+
+if sucesso:
+    print("✓ Clique executado!")
+else:
+    print("❌ Falha no clique")

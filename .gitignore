@@ -1,0 +1,26 @@
+# Ambientes virtuais
+venv/
+env/
+.venv
+
+# Arquivos Python compilados
+__pycache__/
+*.py[cod]
+
+# Variáveis de ambiente
+.env
+
+# Logs
+*.log
+*.png
+*.jpeg
+*.jpg
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Banco de dados
+*.db
+*.sqlite
