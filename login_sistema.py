@@ -48,8 +48,8 @@ driver = webdriver.Chrome()
 wait = WebDriverWait(driver, 20)
 
 # abrindo o site
-#driver.get("https://gtm-latam-uat.onesourcetax.com/module-selection/387/login") #URL do OSGT PHINIA -- TESTES
-driver.get("https://gtm-latam.onesourcetax.com/module-selection/387/login") #URL do OSGT PHINIA - PRODUÇÃO
+driver.get("https://gtm-latam-uat.onesourcetax.com/module-selection/387/login") #URL do OSGT PHINIA -- TESTES
+#driver.get("https://gtm-latam.onesourcetax.com/module-selection/387/login") #URL do OSGT PHINIA - PRODUÇÃO
 time.sleep(3)  # aguarda 10 segundos para a próxima etapa
 
 # ─── LOGIN ─────────────────────────────────────────────────
@@ -57,15 +57,15 @@ time.sleep(3)  # aguarda 10 segundos para a próxima etapa
 campo_user = wait.until(EC.visibility_of_element_located((By.ID, "username")))
 # preencher o campo de usuário
 campo_user.clear()
-#campo_user.send_keys("PZJQ9S") # user PHINIA TESTE
-campo_user.send_keys("HJ2J7R") # user PRODUCAO PHINIA
+campo_user.send_keys("PZJQ9S") # user PHINIA TESTE
+#campo_user.send_keys("HJ2J7R") # user PRODUCAO PHINIA
 
 #campo_pw = driver.find_element(By.XPATH, '//*[@id="password"]')
 campo_pw = wait.until(EC.visibility_of_element_located((By.ID, "password")))
 # preencher o campo de senha - Almeida$%2303
 campo_pw.clear()
-#campo_pw.send_keys("renata01") # user PHINIA TESTE
-campo_pw.send_keys("Start@DT1oj13") # user PRODUCAO PHINIA
+campo_pw.send_keys("renata01") # user PHINIA TESTE
+#campo_pw.send_keys("Start@DT1oj13") # user PRODUCAO PHINIA
 time.sleep(3)  # aguarda 3 segundos para a próxima etapa
 
 # clicar no botão de login
@@ -78,6 +78,7 @@ time.sleep(5)  # aguarda 10 segundos para a próxima etapa
 # botão sistema -
 botao_sistema = wait.until(EC.element_to_be_clickable(
     (By.XPATH, "//a[contains(@class,'module-box')]//span[@class='title' and normalize-space()='ONESOURCE Global Trade']/ancestor::a[1]")
+    #(By.XPATH, '//img[@alt="OSGT_QA"]/parent::a[@class="storeapp-details-link"]') #- elemento clicável anterior, usado no ambiente de teste
 ))
 handles_antes = driver.window_handles
 botao_sistema.click()
@@ -109,8 +110,8 @@ try:
 
     # Agora localiza e clica no elemento
     app_element = wait.until(EC.element_to_be_clickable(
-        #(By.XPATH, '//img[@alt="OSGT_QA"]/parent::a[@class="storeapp-details-link"]') #elemento clicável anterior, usado no ambiente de teste
-        (By.XPATH, '//*[@id="home-screen"]/div[2]/section[5]/div[5]/div/ul/li/a[2]') 
+        (By.XPATH, '//img[@alt="OSGT_QA"]/parent::a[@class="storeapp-details-link"]') #elemento clicável anterior, usado no ambiente de teste
+        #(By.XPATH, '//*[@id="home-screen"]/div[2]/section[5]/div[5]/div/ul/li/a[2]') 
     ))
 
     driver.execute_script("arguments[0].click();", app_element)

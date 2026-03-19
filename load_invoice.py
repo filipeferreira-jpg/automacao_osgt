@@ -15,7 +15,7 @@ gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 if not gerenciador.carregar_do_n8n(fatura_id=22):
     raise Exception("❌ Falha ao carregar itens do N8N")
 # ─── LIMITADOR DE TESTE ───────────────────────────────────
-gerenciador.itens = gerenciador.itens  [:8]# ← Pega apenas os 5 primeiross
+gerenciador.itens = gerenciador.itens  [:4]# ← Pega apenas os 5 primeiross
 # CONTROLE DE ITENS
 print(f"✅ {gerenciador.total_itens()} itens prontos para processar")
 
@@ -36,22 +36,15 @@ itens_encontrados     = []   # itens_encontrados → acumula tudo que passou sem
 itens_divergentes_qtde = []  # itens_divergentes_qtde → acumula tudo que passou mas a quantidade não bateu (comparação entre N8N e soma da grade)
 
 # ─────────────────────────────────────────────────────────,
-item = gerenciador.proximo_item()
-num_ordem    = gerenciador.get_num_ordem(item)
+#item = gerenciador.proximo_item()
+#num_ordem = gerenciador.get_num_ordem(item)
+# Pega o num_ordem do primeiro item SEM consumir — apenas para preencher o campo fixo
+num_ordem_fatura = gerenciador.get_num_ordem(gerenciador.item_atual())
 
-sucesso = auto_ocr.preencher_campo_por_clipboard(
-342,  # x_rel
-494,  # y_rel
-num_ordem,  # NUM. ORDER - DEVE VIR DINAMICO DO BANCO - por enquanto fixo para testes
-pausar=1
-)
-time.sleep(1)
-sucesso = auto_ocr.preencher_campo_por_clipboard(
-342,  # x_rel
-494,  # y_rel
-num_ordem,  # NUM. ORDER - DEVE VIR DINAMICO DO BANCO - por enquanto fixo para testes
-pausar=1
-)
+#auto_ocr.preencher_campo_por_clipboard(342,494,num_ordem,pausar=1)
+#time.sleep(1)
+# Preenche o campo de ordem UMA vez antes do loop
+auto_ocr.preencher_campo_por_clipboard(342, 494, num_ordem_fatura, pausar=1)
 
 while gerenciador.tem_proximo():
 
@@ -71,50 +64,14 @@ while gerenciador.tem_proximo():
     print(f"   Ordem: {num_ordem} | Qtde: {quantity} | Total: {total_value}")
     print("─"*60)
 
-    # 1. Preenche Núm. Ordem
-    # Usa coordenadas fixas para evitar ambiguidade
-    #sucesso = auto_ocr.preencher_campo_clipboard(
-    #342,  # x_rel
-    #494,  # y_rel
-    #num_ordem,  # NUM. ORDER - DEVE VIR DINAMICO DO BANCO - por enquanto fixo para testes
-    #pausar=1
-    #)
+    # num_ordem não preenche dentro do loop pois é fixo por fatura
+    # se a fatura mudar e tiver ordens diferentes, descomentar:
+    # auto_ocr.preencher_campo_por_clipboard(342, 494, num_ordem, pausar=1)
     # 2. Preenche Part Number
-    sucesso = auto_ocr.preencher_campo_por_clipboard(
-    714,  # x_rel
-    494,  # y_rel
-    part_number,  # PART NUMBER - DEVE VIR DINAMICO DO BANCO - por enquanto fixo para testes
-    pausar=1
-    )
-    # 
+    sucesso = auto_ocr.preencher_campo_por_clipboard(714,494,part_number,pausar=1)
     time.sleep(1)
     
-    #sucesso = auto_ocr.preencher_campo_por_clipboard(
-    #714,  # x_rel
-    #494,  # y_rel
-    #part_number,  # PART NUMBER - DEVE VIR DINAMICO DO BANCO - por enquanto fixo para testes
-    #pausar=1
-    #)
-    
-    """
-        # LÓGICA DE PREENCHIMENTO USANDO CLIPBOARD (BLINDADA)
-        O método preencher_campo_clipboard foi projetado para tratar um erro que ocorreu durante os testes: às vezes o campo não era preenchido corretamente,
-        ou o valor antigo permanecia. Isso pode ser causado por uma condição de corrida (race condition) entre o momento em que o valor é copiado para o clipboard
-        e quando ele é colado no campo. A função tenta garantir que o valor correto seja colado, mesmo que haja atrasos ou interferências no clipboard.
-    
-    sucesso = auto_ocr.preencher_campo_clipboard(
-    342,  # x_rel
-    494,  # y_rel
-    num_ordem,
-    pausar=1
-    )
-    sucesso = auto_ocr.preencher_campo_clipboard(
-    714,  # x_rel
-    494,  # y_rel
-    part_number,
-    pausar=1
-    )
-    """
+    #sucesso = auto_ocr.preencher_campo_por_clipboard(714,494,part_number,pausar=1)
     # 3. Clica em Busca
     auto_ocr.clicar_em_texto('Busca', pausar=2, confianca_minima=25)
 
@@ -122,7 +79,7 @@ while gerenciador.tem_proximo():
     #x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(687, 409)
     #pyautogui.click(x_abs, y_abs)
     #time.sleep(2)
-    #print("✓ Clique executado com coordenadas fixas")
+    #print(" Clique executado com coordenadas fixas")
      
     # ─────────────────────────────────────
     # NOVA LÓGICA: TRATAR CASO "Nenhum item foi encontrado!"

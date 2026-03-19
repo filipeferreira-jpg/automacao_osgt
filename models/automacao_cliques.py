@@ -880,11 +880,12 @@ class AutomacaoOCR:
         # olhando o print, o popup fica mais ou menos no centro da janela.
         # Ajuste fino depois se quiser, mas isso já restringe bem a busca.
         # x, y, largura, altura
-        regiao_popup = (430, 210, 500, 330)
+        #regiao_popup = (430, 210, 500, 330)
+        regiao_popup = (560, 290, 240, 130)
 
         # Região menor focada no botão OK dentro do popup
         # (baseado no print: botão está na parte inferior do popup)
-        regiao_ok = (500, 360, 350, 120)
+        regiao_ok = (530, 300, 280, 130)
 
         # Primeiro, tenta na região menor do botão OK
         self.limpar_cache_ocr()
@@ -893,8 +894,8 @@ class AutomacaoOCR:
             tipo_clique='single',
             pausar=pausar,
             regiao=regiao_ok,
-            confianca_minima=0,          # texto pequeno, confiança costuma ser baixa
-            similaridade_minima=0.6,     # tolera variações: 0K, CK, etc.
+            confianca_minima=25,          # texto pequeno, confiança costuma ser baixa
+            similaridade_minima=0.65,     # tolera variações: 0K, CK, etc.
             tentativas=2
         )
 
