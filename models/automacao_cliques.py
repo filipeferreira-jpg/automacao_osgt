@@ -1311,3 +1311,36 @@ class AutomacaoOCR:
 
         print(f"❌ Timeout: Popup 'Informação' não apareceu em {timeout}s.")
         return False
+    
+    def arrastar_coluna_quantidade(self, x_inicio_rel, y_inicio_rel, x_fim_rel, y_fim_rel, duracao_arraste=0.5, pausar=1.0):
+        """
+        Simula o clique e arraste para ajustar a largura de uma coluna na grade.
+        Útil para aumentar o campo de visualização da coluna 'Quantidade'.
+
+        Args:
+            x_inicio_rel, y_inicio_rel: Coordenadas relativas do ponto de início do arraste (onde o clique é segurado).
+            x_fim_rel, y_fim_rel: Coordenadas relativas do ponto final do arraste.
+            duracao_arraste: Duração do movimento de arraste em segundos.
+            pausar: Tempo de espera após o arraste.
+
+        Returns:
+            True se a operação foi executada, False se a janela não estiver focada.
+        """
+        print(f"\n↔️ Ajustando largura da coluna (arrastar de ({x_inicio_rel}, {y_inicio_rel}) para ({x_fim_rel}, {y_fim_rel}))...")
+
+        if not self.captura.janela_atual:
+            print("❌ Nenhuma janela principal selecionada.")
+            return False
+
+        x_inicio_abs, y_inicio_abs = self.captura.obter_posicao_absoluta(x_inicio_rel, y_inicio_rel)
+        x_fim_abs, y_fim_abs       = self.captura.obter_posicao_absoluta(x_fim_rel, y_fim_rel)
+
+        print(f"🖱️  Clicando e arrastando de ({x_inicio_abs}, {y_inicio_abs}) para ({x_fim_abs}, {y_fim_abs})...")
+
+        pyautogui.moveTo(x_inicio_abs, y_inicio_abs) # Move o mouse para o ponto inicial
+        pyautogui.dragTo(x_fim_abs, y_fim_abs, duration=duracao_arraste, button='left') # Clica, segura e arrasta
+
+        time.sleep(pausar)
+        self.limpar_cache_ocr()
+        print("✓ Arraste da coluna executado!")
+        return True

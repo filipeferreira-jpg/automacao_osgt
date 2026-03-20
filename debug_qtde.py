@@ -12,7 +12,7 @@ regioes_teste = [
     # x_rel, y_rel, largura, altura, nome_arquivo
     #(820, 500, 140, 90, 'qtde_teste_1.png'),
     #(860, 500, 120, 90, 'qtde_teste_2.png'),
-    (900, 520, 55, 100, 'qtde_teste_3.png'),
+    (890, 520, 55, 100, 'qtde_quadro.png'),
 ]
 
 for x, y, w, h, nome in regioes_teste:

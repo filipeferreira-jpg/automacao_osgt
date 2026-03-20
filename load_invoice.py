@@ -12,10 +12,10 @@ from models.automacao_cliques import AutomacaoOCR
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
 # Carrega os itens
-if not gerenciador.carregar_do_n8n(fatura_id=22):
+if not gerenciador.carregar_do_n8n(fatura_id=25):
     raise Exception("❌ Falha ao carregar itens do N8N")
 # ─── LIMITADOR DE TESTE ───────────────────────────────────
-gerenciador.itens = gerenciador.itens  [:4]# ← Pega apenas os 5 primeiross
+gerenciador.itens = gerenciador.itens [:2]# ← Pega apenas os 5 primeiross
 # CONTROLE DE ITENS
 print(f"✅ {gerenciador.total_itens()} itens prontos para processar")
 
@@ -45,6 +45,9 @@ num_ordem_fatura = gerenciador.get_num_ordem(gerenciador.item_atual())
 #time.sleep(1)
 # Preenche o campo de ordem UMA vez antes do loop
 auto_ocr.preencher_campo_por_clipboard(342, 494, num_ordem_fatura, pausar=1)
+# As coordenadas (955, 525) e (965, 525) são baseadas na tela 1366x768
+print("\n Ajustando largura da coluna 'Quantidade' na grade...")
+auto_ocr.arrastar_coluna_quantidade(955, 525, 972, 525, duracao_arraste=0.3, pausar=0.5)
 
 while gerenciador.tem_proximo():
 
@@ -166,10 +169,11 @@ print(f"❌ Não encontrados: {len(itens_nao_encontrados)}")
 print("="*60)
 
 # ── Envia relatório final consolidado ao N8N ──────────────
-if itens_nao_encontrados or itens_divergentes_qtde:
+if itens_nao_encontrados or itens_divergentes_qtde or itens_encontrados:
     gerenciador.enviar_relatorio_final(
         itens_nao_encontrados=itens_nao_encontrados,
-        itens_divergentes_qtde=itens_divergentes_qtde
+        itens_divergentes_qtde=itens_divergentes_qtde,
+        itens_encontrados=itens_encontrados
     )
 
 print("\n✅ TODOS OS ITENS PROCESSADOS!")

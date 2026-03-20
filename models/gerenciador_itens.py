@@ -116,7 +116,7 @@ class GerenciadorItens:
             print(f"❌ Erro ao enviar para N8N: {e}")
             return False
 
-    def enviar_relatorio_final(self, itens_nao_encontrados, itens_divergentes_qtde):
+    def enviar_relatorio_final(self, itens_nao_encontrados, itens_divergentes_qtde, itens_encontrados):
         """
         Envia relatório final consolidado ao N8N contendo:
         - Itens não encontrados no sistema
@@ -136,9 +136,11 @@ class GerenciadorItens:
             "resumo": {
                 "total_nao_encontrados" : len(itens_nao_encontrados),
                 "total_divergentes_qtde": len(itens_divergentes_qtde),
+                "total_encontrados"     : len(itens_encontrados),
             },
             "itens_nao_encontrados"  : itens_nao_encontrados,
             "itens_divergentes_qtde" : itens_divergentes_qtde,
+            "itens_encontrados"      : itens_encontrados,
         }
 
         print(f"\n📤 Enviando relatório final ao N8N...")
