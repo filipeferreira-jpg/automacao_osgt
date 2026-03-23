@@ -15,7 +15,7 @@ gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 if not gerenciador.carregar_do_n8n(fatura_id=25):
     raise Exception("❌ Falha ao carregar itens do N8N")
 # ─── LIMITADOR DE TESTE ───────────────────────────────────
-gerenciador.itens = gerenciador.itens [:2]# ← Pega apenas os 5 primeiross
+gerenciador.itens = gerenciador.itens #[:4]# ← Pega apenas os 5 primeiross
 # CONTROLE DE ITENS
 print(f"✅ {gerenciador.total_itens()} itens prontos para processar")
 
@@ -89,7 +89,7 @@ while gerenciador.tem_proximo():
     # ─────────────────────────────────────
     # Damos uma pequena pausa pra janela de aviso aparecer, se for o caso
     time.sleep(1)
-
+    
     if auto_ocr.detectar_popup_nenhum_item():
         print(f"⚠️  Nenhum item encontrado para: {part_number}")
         auto_ocr.fechar_popup_nenhum_item(pausar=1.0)
@@ -103,7 +103,7 @@ while gerenciador.tem_proximo():
             'total_value': total_value
         })
         #print(f"➡️  [{len(itens_nao_encontrados)} não encontrado(s) até agora]")
-        continue
+        continue # pula para o próximo item do loop sem executar o restante do código abaixo
     
     # ── Item encontrado na grade ──
     itens_encontrados.append({
@@ -113,21 +113,33 @@ while gerenciador.tem_proximo():
         'net_price'  : net_price,
         'total_value': total_value
     })
-
+    X_QTDE_HEADER = 948 # <--- COORDENADA X DO CABEÇALHO "Qtde." 
+    Y_QTDE_HEADER = 525 # <--- COORDENADA Y DO CABEÇALHO "Qtde."
+    #print(f"\n⬆️⬇️ Ordenando coluna 'Qtde.' (duplo clique)...")
+    #auto_ocr.clicar_coordenadas_fixas(X_QTDE_HEADER, Y_QTDE_HEADER, tipo_clique='double', pausar=1.0)
     
-    print("✅ Item encontrado na grade, prosseguindo...")
+    
+    #print("✅ Item encontrado na grade, prosseguindo...")
 
     # ─────────────────────────────────────
     # LÓGICA - COMPARAR SOMA DA GRADE x QUANTIDADE N8N
     # ─────────────────────────────────────
-    print("\n📊 Comparando quantidade do N8N com soma da coluna 'Qtde.' na grade...")
+    #print("\n📊 Comparando quantidade do N8N com soma da coluna 'Qtde.' na grade...")
 
-    resultado_qtde = auto_ocr.verificar_soma_quantidades_grade(
-        
+    #resultado_qtde = auto_ocr.verificar_soma_quantidades_grade(
+    #    quantidade_n8n=quantity,
+    #    tolerancia=0.01,      # pode ajustar se quiser permitir variação maior
+    #    confianca_minima=10   # mesmo valor que funcionou no teste
+    #) DESATIVADO PARA TESTE DA ORDENACAO
+    resultado_qtde = auto_ocr.ordenar_e_verificar_quantidade(
+        x_qtde_header=X_QTDE_HEADER,
+        y_qtde_header=Y_QTDE_HEADER,
         quantidade_n8n=quantity,
-        tolerancia=0.01,      # pode ajustar se quiser permitir variação maior
-        confianca_minima=10   # mesmo valor que funcionou no teste
+        tolerancia=0.01,
+        confianca_minima_ocr=10,
+        max_tentativas_ordenacao=2 # Tenta ordenar uma vez (menor->maior), e se não bater, reordena (maior->menor)
     )
+    # -----------------------------
 
     #if resultado_qtde['bate']:
     #    print(f"✅ Quantidade CONFERE para {part_number}.")
