@@ -10,8 +10,8 @@ captura = auto_ocr.captura
 # Use esse loop pra testar diferentes regiões até achar a perfeita
 regioes_teste = [
     # x_rel, y_rel, largura, altura, nome_arquivo
-    (440, 130, 200, 180, 'debug_invoice.png'),
-    #(560, 290, 240, 130, 'grid_popup.png'),
+    (470, 159, 300, 220, 'grid_save.png')
+    #(520, 160, 180, 120, 'grid_popup.png'),
     #(940, 309, 71, 85, 'grid_montagem.png'),
     
 ]
@@ -23,7 +23,5 @@ for x, y, w, h, nome in regioes_teste:
         print(f"  💾 Salvo: {nome}")
     else:
         print("  ❌ Falha ao capturar região")
-
-
 
 print("\nAbra os arquivos qtde_teste_*.png e veja qual está centralizada na coluna 'Qtde.'")

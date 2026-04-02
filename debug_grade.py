@@ -25,10 +25,11 @@ print(f"   Tamanho: {auto_ocr.captura.janela_atual.width}x{auto_ocr.captura.jane
 # ─────────────────────────────────────────────────────────
 # 2. COORDENADAS DA GRADE (mapeadas por você)OK(440, 400, 120, 150) / Janela Informação(150, 320, 700, 210)
 # ─────────────────────────────────────────────────────────
-X_GRADE     = 550
-Y_GRADE     = 290
-LARGURA     = 260
-ALTURA      = 130
+X_GRADE     = 400
+Y_GRADE     = 200
+LARGURA     = 400
+ALTURA      = 300
+#REG_INVOICE = (400, 200, 400, 300)
 #(530,300,280,130) - teste região OK
 
 #(315, 315, 120, 150) - teste região OK
@@ -40,13 +41,13 @@ print(f"\n Capturando região da grade ({X_GRADE}, {Y_GRADE}, {LARGURA}, {ALTURA
 img = auto_ocr.captura.capturar_regiao(
     X_GRADE, Y_GRADE, LARGURA, ALTURA,
     salvar=True,
-    nome_arquivo='debug_grade_raw.png'
+    nome_arquivo='debug_menu_invoice.png'
 )
 
 if not img:
     raise SystemExit(" Falha ao capturar região da grade.")
 
-print("💾 Salvo: debug_grade_raw.png")
+print("💾 Salvo: debug_menu_invoice.png")
 
 # ─────────────────────────────────────────────────────────
 # 4. OCR NA GRADE

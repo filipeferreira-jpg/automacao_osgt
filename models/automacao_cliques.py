@@ -2,11 +2,17 @@
 Módulo de automação usando OCR (Tesseract)
 Encontra textos na tela e clica neles
 """
+
+import cv2
+import re
 import win32com.client
 import pyautogui
 import pytesseract
 import time
 import pyperclip
+from datetime import datetime
+import numpy as np
+from collections import Counter
 from difflib import SequenceMatcher
 from PIL import Image, ImageDraw, ImageOps, ImageEnhance
 from models.captura_tela import CapturaTela
@@ -39,9 +45,34 @@ class AutomacaoOCR:
             texto_b.strip().lower()
         ).ratio()        
 
-    def processar_ocr(self, regiao=None, forcar_nova=False):
-        """Processa OCR na janela ou região específica"""
-        cache_key = str(regiao) if regiao else 'full'
+    def limpar_cache_ocr(self):
+        """Limpa o cache de OCR"""
+        self.cache_ocr = {}
+        self.captura.limpar_cache()
+        print("🗑️  Cache OCR limpo")
+    # Dentro da classe AutomacaoOCR em automacao_cliques.py
+
+    def processar_ocr(self, regiao=None, forcar_nova=False, preprocessing_config=None):
+        """
+        Processa OCR na janela ou região específica, com pré-processamento opcional.
+
+        Args:
+            regiao (tuple): (x, y, w, h) da região a capturar.
+            forcar_nova (bool): Se True, força nova captura e OCR, ignorando o cache.
+            preprocessing_config (dict): Dicionário com configurações de pré-processamento:
+                - 'amplify_factor': Fator de ampliação (ex: 3 para 3x).
+                - 'grayscale': True para converter para escala de cinza.
+                - 'contrast': Fator de contraste (ex: 2.0 para 2x).
+                - 'threshold': Limiar para binarização (0-255).
+                - 'invert': True para inverter cores (útil para texto claro em fundo escuro).
+                - 'whitelist': Caracteres permitidos para Tesseract (ex: '0123456789,.').
+                - 'psm': Page Segmentation Mode para Tesseract (ex: 6 para linha única).
+                - 'debug_filename_prefix': Prefixo para salvar arquivos de debug (ex: 'debug_qtde_ocr').
+
+        Returns:
+            dict: Dados do OCR, screenshot e região, ou None em caso de falha.
+        """
+        cache_key = str(regiao) + str(preprocessing_config) if regiao else 'full' + str(preprocessing_config)
 
         if not forcar_nova and cache_key in self.cache_ocr:
             print("📋 Usando OCR em cache")
@@ -58,90 +89,75 @@ class AutomacaoOCR:
         if not screenshot:
             return None
 
+        img_processada = screenshot.copy()
+        debug_prefix = preprocessing_config.get('debug_filename_prefix', 'debug_ocr') if preprocessing_config else 'debug_ocr'
+
+        # Salva o screenshot original para debug, se houver pré-processamento
+        if preprocessing_config:
+            img_processada.save(f'{debug_prefix}_original.png')
+            print(f"💾 Debug original salvo: '{debug_prefix}_original.png'")
+
+            # Aplica pré-processamento se configurado
+            #amplify_factor = 1
+            amplify_factor = preprocessing_config.get('amplify_factor', 1)
+            if amplify_factor > 1:
+                img_processada = img_processada.resize(
+                    (img_processada.width * amplify_factor, img_processada.height * amplify_factor),
+                    Image.LANCZOS
+                )
+
+            if preprocessing_config.get('grayscale', False):
+                img_processada = img_processada.convert('L')
+
+            contrast_factor = preprocessing_config.get('contrast', 1.0)
+            if contrast_factor != 1.0:
+                enhancer = ImageEnhance.Contrast(img_processada)
+                img_processada = enhancer.enhance(contrast_factor)
+
+            threshold = preprocessing_config.get('threshold')
+            if threshold is not None:
+                #img_processada = img_processada.point(lambda p: p > threshold and 255)
+                img_processada = img_processada.point(lambda p: 255 if p > threshold else 0)
+
+            if preprocessing_config.get('invert', False):
+                img_processada = ImageOps.invert(img_processada)
+
+            img_processada.save(f'{debug_prefix}_processada.png')
+            print(f"💾 Debug processado salvo: '{debug_prefix}_processada.png'")
+
+        # Configuração do Tesseract
+        config_tesseract = ''
+        if preprocessing_config:
+            if 'whitelist' in preprocessing_config:
+                config_tesseract += f'-c tessedit_char_whitelist={preprocessing_config["whitelist"]} '
+            if 'psm' in preprocessing_config:
+                config_tesseract += f'--psm {preprocessing_config["psm"]}'
+
         data = pytesseract.image_to_data(
-            screenshot,
+            img_processada,
             lang='por',
+            config=config_tesseract.strip(),
             output_type=pytesseract.Output.DICT
         )
 
         self.cache_ocr[cache_key] = {
             'data': data,
             'regiao': regiao,
-            'screenshot': screenshot
+            'screenshot': screenshot # Guarda o original, não o processado
         }
 
         print(f"✓ OCR processado - {len(data['text'])} elementos detectados")
         return self.cache_ocr[cache_key]
-
-    def limpar_cache_ocr(self):
-        """Limpa o cache de OCR"""
-        self.cache_ocr = {}
-        self.captura.limpar_cache()
-        print("🗑️  Cache OCR limpo")
-    """ HELPER ANTIGO PARA ENCONTRAR TEXTO, PRECISEI MODIFICAR PARA PASSAR A similaridade_minima COMO PARÂMETRO, ENTÃO DEIXEI ESSE MÉTODO ANTIGO COMENTADO PARA NÃO PERDER O CÓDIGO
-    def encontrar_texto(self, texto_busca, confianca_minima=30, parcial=True, regiao=None):
-        Encontra um texto na tela usando OCR
-        print(f"🔍 Procurando texto: '{texto_busca}'...")
-
-        resultado_ocr = self.processar_ocr(regiao=regiao)
-        if not resultado_ocr:
-            return None
-
-        data = resultado_ocr['data']
-        regiao_offset = resultado_ocr['regiao']
-
-        for i in range(len(data['text'])):
-            texto = data['text'][i].strip()
-            conf = int(data['conf'][i])
-
-            if conf < confianca_minima:
-                continue
-
-            if parcial:
-                encontrado = texto_busca.lower() in texto.lower()
-            else:
-                encontrado = texto_busca.lower() == texto.lower()
-
-            if encontrado:
-                x_rel = data['left'][i] + data['width'][i] // 2
-                y_rel = data['top'][i] + data['height'][i] // 2
-
-                if regiao_offset:
-                    x_rel += regiao_offset[0]
-                    y_rel += regiao_offset[1]
-
-                x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel, y_rel)
-
-                resultado = {
-                    'texto': texto,
-                    'x_rel': x_rel,
-                    'y_rel': y_rel,
-                    'x_abs': x_abs,
-                    'y_abs': y_abs,
-                    'confianca': conf,
-                    'largura': data['width'][i],
-                    'altura': data['height'][i]
-                }
-
-                print(f"✓ Encontrado: '{texto}' (confiança: {conf}%)")
-                print(f"  Posição relativa: ({x_rel}, {y_rel})")
-                print(f"  Posição absoluta: ({x_abs}, {y_abs})")
-
-                return resultado
-
-        print(f"❌ Texto '{texto_busca}' não encontrado")
-        return None
-    """
     
-    def encontrar_texto(self, texto_busca, confianca_minima=30, regiao=None, similaridade_minima=0.75):
-        """Encontra texto na tela usando OCR com tolerância a erros de leitura"""
+    def encontrar_texto(self, texto_busca, confianca_minima=30, regiao=None, similaridade_minima=0.75, preprocessing_config=None):
+        """Encontra texto na tela usando OCR com tolerância a erros de leitura e pré-processamento opcional"""
 
-        resultado_ocr = self.processar_ocr(regiao=regiao)
+        resultado_ocr = self.processar_ocr(regiao=regiao, preprocessing_config=preprocessing_config)
         if not resultado_ocr:
             return None
 
         data = resultado_ocr['data']
-        regiao_offset = resultado_ocr.get('regiao_offset')  # ou como está no teu código
+        regiao_offset = resultado_ocr.get('regiao')
         melhor_resultado  = None
         melhor_similaridade = 0
 
@@ -160,14 +176,16 @@ class AutomacaoOCR:
             if similaridade_ok and confianca_ok:
                 if sim > melhor_similaridade:
                     melhor_similaridade = sim
+                    
+                    # teste padrozinação amplify_factor
+                    amplify_factor = preprocessing_config.get('amplify_factor', 1) if preprocessing_config else 1
+                    
+                    x_rel = (data['left'][i] + data['width'][i] // 2) // amplify_factor
+                    y_rel = (data['top'][i]  + data['height'][i] // 2) // amplify_factor
 
-                    # ✅ coordenadas reais — igual ao teu código original
-                    x_rel = data['left'][i] + data['width'][i] // 2
-                    y_rel = data['top'][i]  + data['height'][i] // 2
-
-                    if regiao:
-                        x_rel += regiao[0]
-                        y_rel += regiao[1]
+                    if regiao_offset: # Se a captura foi de uma região, ajusta as coordenadas
+                        x_rel += regiao_offset[0]
+                        y_rel += regiao_offset[1]
 
                     coords = self.captura.obter_posicao_absoluta(x_rel, y_rel)
                     if coords is None:
@@ -182,8 +200,8 @@ class AutomacaoOCR:
                         'similaridade': round(sim * 100, 1),
                         'x_rel'       : x_rel,
                         'y_rel'       : y_rel,
-                        'x_abs'       : x_abs,  # ✅ valor real
-                        'y_abs'       : y_abs,  # ✅ valor real
+                        'x_abs'       : x_abs,
+                        'y_abs'       : y_abs,
                     }
 
         if melhor_resultado:
@@ -371,7 +389,7 @@ class AutomacaoOCR:
         regiao_toolbar_interna = (200, 120, 700, 80)
 
         resultado = self.encontrar_texto(
-            'COMPOSIÇÃO',
+            'Composição',
             confianca_minima=20,
             regiao=regiao_toolbar_interna
         )
@@ -502,12 +520,8 @@ class AutomacaoOCR:
         screenshot.save(nome_arquivo)
         print(f"✓ Mapa visual salvo: {nome_arquivo}")
         return True
-
-    """
     
-    NOVAS CLASSES DE CLIQUES ESPECÍFICOS PARA ELEMENTOS DA JANELA DE FATURA (APÓS CLICAR NO BOTÃO +):
-    """
-    
+    ### NOVAS CLASSES DE CLIQUES ESPECÍFICOS PARA ELEMENTOS DA JANELA DE FATURA (APÓS CLICAR NO BOTÃO +):
     def preencher_campo_num_ordem_filtro(self, numero_ordem, pausar=0.5):
         """
         Preenche o campo 'Núm. Ordem' do FILTRO (seção de busca)
@@ -852,7 +866,6 @@ class AutomacaoOCR:
         print("❌ Popup não detectado na região mapeada")
         return False
 
-
     def fechar_popup_nenhum_item(self, pausar=1.0):
         """
         Fecha o popup 'Nenhum item foi encontrado!' clicando em OK.
@@ -885,7 +898,7 @@ class AutomacaoOCR:
 
         # Região menor focada no botão OK dentro do popup
         # (baseado no print: botão está na parte inferior do popup)
-        regiao_ok = (530, 300, 280, 130)
+        regiao_ok = (620, 380, 140, 45)
 
         # Primeiro, tenta na região menor do botão OK
         self.limpar_cache_ocr()
@@ -960,10 +973,17 @@ class AutomacaoOCR:
 
         print("✓ Abra os arquivos de debug para confirmar as coordenadas do popup")
 
-    #classe para ver as quantidades com confiança muito baixa
-    def ler_quantidades_grade_qualidade_teste(self, confianca_minima=10):
+    def ler_quantidades_grade(self, regiao_qtde, confianca_minima=8, preprocessing_config=None):
         """
-        Lê todas as quantidades (coluna Qtde.) da grade e retorna lista de floats.
+        Lê todas as quantidades da coluna Qtde. e retorna lista de floats.
+        Trata corretamente valores no formato BR, por exemplo:
+        8.640,00000 -> 8640.0
+
+        Estratégia:
+        - OCR na região informada
+        - captura tokens numéricos mesmo com ponto de milhar
+        - agrupa por linha visual (campo 'top')
+        - escolhe o melhor valor por linha
         """
 
         print("\n🔍 Lendo coluna 'Qtde.' da grade de resultados...")
@@ -972,391 +992,307 @@ class AutomacaoOCR:
             print("❌ Nenhuma janela selecionada")
             return []
 
-        x_rel, y_rel, largura, altura = 890, 520, 55, 100   # ajuste aqui se necessário
-        #(890, 520, 55, 100
-
         self.limpar_cache_ocr()
-        screenshot = self.captura.capturar_regiao(
-            x_rel, y_rel, largura, altura,
-            salvar=True,
-            nome_arquivo='debug_qtde_grade.png'
+
+        resultado_ocr = self.processar_ocr(
+            regiao=regiao_qtde,
+            forcar_nova=True,
+            preprocessing_config=preprocessing_config
         )
 
-        if not screenshot:
-            print("❌ Falha ao capturar região da coluna Qtde.")
+        if not resultado_ocr:
+            print("❌ Falha ao processar OCR da coluna Qtde.")
             return []
 
-        print(f"💾 Debug salvo: 'debug_qtde_grade.png' | região: ({x_rel}, {y_rel}, {largura}, {altura})")
+        data = resultado_ocr['data']
 
-        # Ampliar imagem para melhorar OCR
-        img_ampliada = screenshot.resize(
-            (screenshot.width * 3, screenshot.height * 3),
-            Image.LANCZOS
-        )
-        img_ampliada.save('debug_qtde_ampliada.png')
-        print("💾 Debug ampliado salvo: 'debug_qtde_ampliada.png'")
-
-        config_tesseract = '--psm 6 -c tessedit_char_whitelist=0123456789,.'
-
-        data = pytesseract.image_to_data(
-            img_ampliada,
-            lang='por',
-            config=config_tesseract,
-            output_type=pytesseract.Output.DICT
-        )
-
-        quantidades = []
-
-        print("\n📜 OCR bruto na coluna Qtde.:")
-        for i in range(len(data['text'])):
-            texto = data['text'][i].strip()
+        def normalizar_valor_ocr(texto):
+            """
+            Converte:
+            '8.640,00000' -> 8640.0
+            '640,00000'   -> 640.0
+            '8640'        -> 8640.0
+            """
             if not texto:
-                continue
+                return None
+
+            texto = str(texto).strip()
+            texto = re.sub(r'[^0-9.,]', '', texto)
+
+            if not texto:
+                return None
+
+            # formato brasileiro com vírgula decimal
+            if ',' in texto:
+                texto = texto.replace('.', '').replace(',', '.')
+            else:
+                # se vier só com pontos, mantém apenas o último como decimal
+                partes = texto.split('.')
+                if len(partes) > 1:
+                    texto = ''.join(partes[:-1]) + '.' + partes[-1]
 
             try:
-                conf = int(data['conf'][i])
+                return float(texto)
             except ValueError:
-                conf = 0
+                return None
 
-            print(f"  Texto='{texto}' | conf={conf}%")
+        # aceita:
+        # 8.640,00000
+        # 640,00000
+        # 8640
+        padrao_numero = r'\d{1,3}(?:\.\d{3})*,\d+|\d+,\d+|\d+'
 
-            if conf < confianca_minima:
-                print(f"    ↳ descartado (conf {conf}% < mínimo {confianca_minima}%)")
-                continue
-
-            normalizado = texto.replace(' ', '').replace(',', '.')
-            try:
-                valor = float(normalizado)
-                # evita zeros de linhas vazias
-                if valor == 0.0:
-                    continue
-                quantidades.append(valor)
-                print(f"    ✓ Quantidade aceita: {valor}")
-            except ValueError:
-                print("    ↳ não é número, ignorado")
-                continue
-
-        print(f"\n📋 Quantidades extraídas: {quantidades}")
-        return quantidades
-
-    def ler_quantidades_grade_qualidade_baixa(self, confianca_minima=10):
-        """
-        Lê todas as quantidades (coluna Qtde.) da grade e retorna lista de floats.
-        Inclui pré-processamento de imagem para melhorar o OCR.
-        """
-        print("\n🔍 Lendo coluna 'Qtde.' da grade de resultados (qualidade baixa)...")
-
-        if not self.captura.janela_atual:
-            print("❌ Nenhuma janela selecionada")
-            return []
-
-        # --- COORDENADAS DA REGIÃO DA COLUNA QUANTIDADE ---
-        # Você confirmou que (890, 520, 55, 100) é suficiente para 1366x768.
-        # Se o debug mostrar que não está pegando tudo, ajuste aqui.
-        regiao_qtde = (890, 520, 55, 100)
-
-        self.limpar_cache_ocr()
-        screenshot = self.captura.capturar_regiao(
-            regiao_qtde[0], regiao_qtde[1], regiao_qtde[2], regiao_qtde[3],
-            salvar=True,
-            nome_arquivo='debug_qtde_grade_original.png'
-        )
-
-        if not screenshot:
-            print("❌ Falha ao capturar região da coluna Qtde.")
-            return []
-
-        print(f"💾 Debug original salvo: 'debug_qtde_grade_original.png' | região: {regiao_qtde}")
-
-        # --- PRÉ-PROCESSAMENTO DA IMAGEM ---
-        # 1. Ampliar imagem (já estava fazendo, mas agora com Image.LANCZOS para melhor qualidade)
-        img_processada = screenshot.resize(
-            (screenshot.width * 3, screenshot.height * 3),
-            Image.LANCZOS
-        )
-
-        # 2. Converter para escala de cinza
-        img_processada = img_processada.convert('L')
-
-        # 3. Aumentar contraste
-        enhancer = ImageEnhance.Contrast(img_processada)
-        img_processada = enhancer.enhance(2.0) # Aumenta o contraste em 2x (pode ajustar)
-
-        # 4. Binarização (preto e branco puro)
-        # Define um limiar (threshold) para converter pixels em preto ou branco
-        # Ajuste este valor (0-255) se os números não estiverem claros no debug_qtde_processada.png
-        # Valores mais altos deixam mais pixels brancos, mais baixos deixam mais pretos.
-        threshold = 190
-        img_processada = img_processada.point(lambda p: p > threshold and 255)
-
-        img_processada.save('debug_qtde_processada.png')
-        print("💾 Debug processado salvo: 'debug_qtde_processada.png'")
-
-        # --- CONFIGURAÇÃO DO TESSERACT ---
-        # PSM 6: Assume uma única linha de texto. Bom para cada número individual em uma coluna.
-        # -c tessedit_char_whitelist=0123456789,. : Filtra para aceitar apenas números, vírgula e ponto.
-        config_tesseract = '--psm 6 -c tessedit_char_whitelist=0123456789,.'
-
-        data = pytesseract.image_to_data(
-            img_processada, # Usa a imagem pré-processada
-            lang='por',
-            config=config_tesseract,
-            output_type=pytesseract.Output.DICT
-        )
-
-        quantidades = []
+        candidatos = []
 
         print("\n📜 OCR bruto na coluna Qtde. (após pré-processamento):")
         for i in range(len(data['text'])):
-            texto = data['text'][i].strip()
+            texto = str(data['text'][i]).strip()
             if not texto:
                 continue
 
             try:
-                conf = int(data['conf'][i])
-            except ValueError:
+                conf = int(float(data['conf'][i]))
+            except Exception:
                 conf = 0
 
-            print(f"  Texto='{texto}' | conf={conf}%")
+            top = int(data['top'][i]) if str(data['top'][i]).strip() else 0
+            left = int(data['left'][i]) if str(data['left'][i]).strip() else 0
+
+            print(f"  Texto='{texto}' | conf={conf}% | top={top}")
 
             if conf < confianca_minima:
                 print(f"    ↳ descartado (conf {conf}% < mínimo {confianca_minima}%)")
                 continue
 
-            # Normaliza o texto para float: "200,0" -> "200.0"
-            normalizado = texto.replace(' ', '').replace(',', '.')
-            try:
-                valor = float(normalizado)
-                # Se você só quer a parte inteira antes da vírgula, pode fazer:
-                # valor = int(float(normalizado))
-                # Mas para comparação de quantidade, float é geralmente mais preciso.
-
-                # Evita adicionar '0' de linhas vazias ou leituras erradas de ruído
-                if valor == 0.0 and len(normalizado) <= 2: # Ex: "0", "0."
-                    continue
-                quantidades.append(valor)
-                print(f"    ✓ Quantidade aceita: {valor}")
-            except ValueError:
-                print("    ↳ não é número, ignorado")
+            encontrados = re.findall(padrao_numero, texto)
+            if not encontrados:
+                print("    ↳ não contém padrão numérico válido")
                 continue
 
-        print(f"\n📋 Quantidades extraídas: {quantidades}")
-        return quantidades    
+            for trecho in encontrados:
+                valor = normalizar_valor_ocr(trecho)
+                if valor is None:
+                    continue
 
-    # FUNÇÃO PRINCIPAL PARA LER AS QUANTIDADES DA GRADE COM CONFIANÇA NORMAL (15% ou mais)
-    def ler_quantidades_grade(self, confianca_minima=20):
-        """
-        Lê todas as quantidades (coluna Qtde.) da grade 'Itens da Ordem de Importação'
-        e retorna uma lista de floats.
+                # evita lixo muito improvável
+                if valor <= 0:
+                    continue
 
-        ATENÇÃO: esta função assume que a grade já está com os resultados na tela.
-        """
+                candidatos.append({
+                    'valor': valor,
+                    'texto': trecho,
+                    'conf': conf,
+                    'top': top,
+                    'left': left
+                })
+                print(f"    ✓ candidato aceito: '{trecho}' -> {valor}")
 
-        print("\n🔍 Lendo coluna 'Qtde.' da grade de resultados...")
-
-        if not self.captura.janela_atual:
-            print("❌ Nenhuma janela selecionada")
+        if not candidatos:
+            print("❌ Nenhuma quantidade válida encontrada.")
             return []
 
-        # Região aproximada da coluna 'Qtde.' na grade, baseada no print:
-        # A grade começa logo abaixo do filtro; coluna Qtde. está mais à direita.
-        # Ajuste fino se necessário.
-        #
-        # x_rel, y_rel, largura, altura
-        regiao_qtde = (890, 520, 55, 100)  # região para pegar só a coluna Qtde. (890, 520, 55, 100
+        # Ordena visualmente por linha
+        candidatos.sort(key=lambda x: (x['top'], x['left']))
 
-        # Força nova captura só dessa região
-        self.limpar_cache_ocr()
-        screenshot = self.captura.capturar_regiao(
-            regiao_qtde[0],
-            regiao_qtde[1],
-            regiao_qtde[2],
-            regiao_qtde[3],
-            salvar=True,
-            nome_arquivo='debug_qtde_grade.png'  # debug visual
-        )
+        # Agrupa itens da mesma linha usando proximidade vertical
+        grupos = []
+        tolerancia_top = 18
 
-        if not screenshot:
-            print("❌ Falha ao capturar região da coluna Qtde.")
-            return []
+        for item in candidatos:
+            if not grupos:
+                grupos.append([item])
+                continue
 
-        print("💾 Screenshot da coluna Qtde. salvo em 'debug_qtde_grade.png'")
-
-        data = pytesseract.image_to_data(
-            screenshot,
-            lang='por',  # se estiver em inglês, pode trocar pra 'eng'
-            output_type=pytesseract.Output.DICT
-        )
+            top_medio = sum(x['top'] for x in grupos[-1]) / len(grupos[-1])
+            if abs(item['top'] - top_medio) <= tolerancia_top:
+                grupos[-1].append(item)
+            else:
+                grupos.append([item])
 
         quantidades = []
 
-        for i in range(len(data['text'])):
-            texto = data['text'][i].strip()
-            if not texto:
-                continue
+        print("\n📋 Consolidação por linha:")
+        for idx, grupo in enumerate(grupos, start=1):
+            # escolhe o item de maior confiança; empate -> maior valor textual mais completo
+            melhor = sorted(
+                grupo,
+                key=lambda x: (x['conf'], len(str(x['texto'])), x['left']),
+                reverse=True
+            )[0]
 
-            try:
-                conf = int(data['conf'][i])
-            except ValueError:
-                conf = 0
+            quantidades.append(melhor['valor'])
+            print(
+                f"  Linha {idx}: valor={melhor['valor']} | "
+                f"texto='{melhor['texto']}' | conf={melhor['conf']} | top={melhor['top']}"
+            )
 
-            if conf < confianca_minima:
-                continue
-
-            # Normaliza número com vírgula ou ponto
-            normalizado = texto.replace('.', '').replace(',', '.')
-            # exemplos:
-            #  "2,00000" -> "200000" (se tiver ponto de milhar) – por isso primeiro remove ponto
-            #  depois vírgula em decimal: "2,00000" -> "200000" -> isso é ruim; vamos ser menos agressivo:
-            # Vamos usar uma regra mais simples: trocar só vírgula por ponto e deixar pontos.
-
-            normalizado = texto.replace(',', '.')
-
-            try:
-                valor = float(normalizado)
-                quantidades.append(valor)
-                print(f"  ✓ Quantidade detectada: '{texto}' -> {valor} (conf: {conf}%)")
-            except ValueError:
-                # Não é número, ignora
-                continue
-
-        print(f"📋 Quantidades extraídas da grade: {quantidades}")
+        print(f"\n✅ Quantidades extraídas: {quantidades}")
         return quantidades
-
-    def verificar_soma_quantidades_grade(self, quantidade_n8n, tolerancia=0.01, confianca_minima=10):
+    
+    def _ler_e_processar_quantidades_grade(self, regiao_qtde, confianca_minima=10, preprocessing_config=None):
         """
-        Usa ler_quantidades_grade_qualidade_baixa para somar as quantidades
-        da coluna Qtde. e comparar com o valor vindo do N8N.
+        Função interna para ler as quantidades da grade usando ler_quantidades_grade.
+        Retorna apenas a lista de quantidades lidas.
+        """
+        print("\n📊 Lendo e processando quantidades da grade...")
+        quantidades_grade = self.ler_quantidades_grade(
+            regiao_qtde=regiao_qtde,
+            confianca_minima=confianca_minima,
+            preprocessing_config=preprocessing_config
+        )
+        return quantidades_grade
+    
+    def ordenar_e_verificar_quantidade(self,
+                                        x_qtde_header, y_qtde_header,
+                                        quantidade_n8n,
+                                        regiao_qtde, # Novo parâmetro
+                                        tolerancia=0.01,
+                                        confianca_minima_ocr=10,
+                                        max_tentativas_ordenacao=2,
+                                        preprocessing_config_qtde=None): # Novo parâmetro
+        """
+        Tenta ordenar a coluna 'Qtde.' e verifica se ALGUMA quantidade individual
+        na grade é menor ou igual à quantidade esperada do N8N.
+        Reordena se a primeira tentativa não for suficiente.
 
         Args:
-            quantidade_n8n: valor esperado (do N8N)
-            tolerancia: diferença absoluta máxima aceitável
-            confianca_minima: passado pra função de leitura, se você quiser usar
+            x_qtde_header, y_qtde_header: Coordenadas do cabeçalho da coluna 'Qtde.'.
+            quantidade_n8n: Quantidade esperada do N8N.
+            regiao_qtde: Região da coluna de quantidade para o OCR.
+            tolerancia: Tolerância para a comparação de quantidades.
+            confianca_minima_ocr: Confiança mínima para o OCR.
+            max_tentativas_ordenacao: Número máximo de vezes para tentar ordenar a coluna.
+            preprocessing_config_qtde: Configurações de pré-processamento para o OCR de quantidades.
 
         Returns:
             dict:
             {
                 'bate': True/False,
-                'soma_grade': float,
+                'quantidade_encontrada_grade': float (a primeira que bateu ou 0.0),
                 'quantidade_n8n': float,
                 'diferenca': float,
                 'lista_grade': [floats...]
             }
         """
-        print("\n📊 Verificando soma de quantidades na grade...")
+        print(f"\n🔄 Iniciando ordenação e verificação para quantidade N8N: {quantidade_n8n}")
+        quantidade_n8n = self._to_float(quantidade_n8n)
+        #quantidade_n8n = float(quantidade_n8n)
+        quantidade_encontrada_grade = 0.0 # Inicializa com 0.0
+        quantidades_grade = [] # Lista para armazenar as quantidades lidas da grade
+        for tentativa_ordem in range(1, max_tentativas_ordenacao + 1):
+            print(f"   Tentativa de ordenação {tentativa_ordem}/{max_tentativas_ordenacao}...")
 
-        quantidade_n8n = float(quantidade_n8n)
+            # Clica no cabeçalho da coluna "Qtde." para ordenar
+            self.clicar_coordenadas_fixas(x_qtde_header, y_qtde_header, tipo_clique='double', pausar=0.7)
+            time.sleep(1) # Pequena pausa para a ordenação ser aplicada visualmente
 
-        # se sua função nova aceitar parâmetro de confiança, passe aqui; se não, chame direto
-        quantidades_grade = self.ler_quantidades_grade_qualidade_baixa(
-            confianca_minima=confianca_minima
-        )
+            # Lê as quantidades da grade usando a função interna
+            quantidades_grade = self._ler_e_processar_quantidades_grade(
+                regiao_qtde=regiao_qtde,
+                confianca_minima=confianca_minima_ocr,
+                preprocessing_config=preprocessing_config_qtde
+            )
 
-        if not quantidades_grade:
-            print("⚠️  Nenhuma quantidade lida da grade.")
-            return {
-                'bate': False,
-                'soma_grade': 0.0,
-                'quantidade_n8n': quantidade_n8n,
-                'diferenca': quantidade_n8n,
-                'lista_grade': []
-            }
+            if not quantidades_grade:
+                print("⚠️  Nenhuma quantidade lida da grade após ordenação.")
+                if tentativa_ordem < max_tentativas_ordenacao:
+                    print("   Tentando reordenar a coluna...")
+                    continue
+                else:
+                    print("   Máximo de tentativas de ordenação atingido sem ler quantidades.")
+                    break # Sai do loop se não leu nada após todas as tentativas
 
-        soma_grade = sum(quantidades_grade)
-        diferenca = abs(soma_grade - quantidade_n8n)
-        bate = diferenca <= tolerancia
+            print(f"   Quantidades lidas da grade: {quantidades_grade}")
 
-        print(f"   Quantidades na grade: {quantidades_grade}")
-        print(f"   Soma grade: {soma_grade}")
-        print(f"   N8N:       {quantidade_n8n}")
-        print(f"   Diferença: {diferenca}")
+            # Lógica de comparação: verifica se ALGUMA quantidade lida é <= quantidade_n8n
+            bate = False
+            for qtde_lida in quantidades_grade:
+                diferenca = abs(qtde_lida - quantidade_n8n)
+                if qtde_lida <= quantidade_n8n + tolerancia: # Adiciona tolerância aqui também
+                    print(f"   ✅ Remessa {qtde_lida} na grade é <= N8N {quantidade_n8n} (tolerância {tolerancia}).")
+                    bate = True
+                    quantidade_encontrada_grade = qtde_lida # Guarda a primeira que bateu
+                    break # Encontrou uma que bateu, pode sair
 
-        if bate:
-            print("✅ SOMA BATE com o valor do N8N.")
-        else:
-            print("❌ SOMA NÃO BATE com o valor do N8N.")
+            if bate:
+                print(f"✅ Quantidade OK após ordenação (tentativa {tentativa_ordem}).")
+                return {
+                    'bate': True,
+                    'quantidade_encontrada_grade': quantidade_encontrada_grade,
+                    'quantidade_n8n': quantidade_n8n,
+                    'diferenca': abs(quantidade_encontrada_grade - quantidade_n8n),
+                    'lista_grade': quantidades_grade
+                }
+            else:
+                print(f"❌ Nenhuma remessa na grade é igual ou menor que a quantidade N8N após ordenação (tentativa {tentativa_ordem}).")
+                if tentativa_ordem < max_tentativas_ordenacao:
+                    print("   Tentando reordenar a coluna...")
+                else:
+                    print("   Máximo de tentativas de ordenação atingido.")
 
+        print("⚠️  Não foi possível validar a quantidade após todas as tentativas de ordenação.")
+        # Retorna o último estado, mesmo que não tenha batido
         return {
-            'bate': bate,
-            'soma_grade': soma_grade,
+            'bate': False,
+            'quantidade_encontrada_grade': quantidade_encontrada_grade, # Pode ser 0.0 ou a última lida
             'quantidade_n8n': quantidade_n8n,
-            'diferenca': diferenca,
+            'diferenca': abs(quantidade_encontrada_grade - quantidade_n8n),
             'lista_grade': quantidades_grade
         }
-
-    def ocr_grade_itens_ordem(self,
-                              x_rel, y_rel,
-                              largura, altura,
-                              confianca_minima=10,
-                              salvar_debug=True,
-                              nome_debug='debug_grade_itens_ordem.png'):
-        """
-        Faz OCR da grade 'Itens da Ordem de Importação' (região destacada na imagem)
-        e lista todos os textos detectados nela, com posição.
-
-        Use primeiro só para debug / calibração de coordenadas.
-        Depois podemos especializar para ler colunas específicas (Qtde, Valor, etc.).
-        """
-        print("\n🔍 Lendo grade 'Itens da Ordem de Importação'...")
-
-        if not self.captura.janela_atual:
-            print("❌ Nenhuma janela selecionada")
-            return []
-
-        # Captura a região da grade e processa OCR
-        self.limpar_cache_ocr() # Limpa o cache para garantir nova captura
-        resultado_ocr = self.processar_ocr(
-            regiao=(x_rel, y_rel, largura, altura),
-            forcar_nova=True # Força nova captura para a região
-        )
-
-        if not resultado_ocr:
-            print("❌ Falha ao processar OCR da região da grade.")
-            return []
-
-        # Salva o screenshot da região para debug
-        if salvar_debug and resultado_ocr['screenshot']:
-            resultado_ocr['screenshot'].save(nome_debug)
-            print(f"💾 Debug da região da grade salvo: '{nome_debug}'")
-
-        data = resultado_ocr['data']
-        resultados = []
-
-        print("\n📜 Textos detectados na grade:")
-        for i in range(len(data['text'])):
-            texto = data['text'][i].strip()
-            conf  = int(data['conf'][i])
-
-            if not texto:
-                continue
-
-            if conf < confianca_minima:
-                # print(f"  Texto='{texto}' (conf={conf}%) - descartado por baixa confiança")
-                continue
-
-            # Coordenadas relativas à janela (somando o offset da região)
-            # data['left'] e data['top'] já são relativos à screenshot da região
-            # então precisamos somar o x_rel e y_rel da região para ter as coordenadas relativas à janela principal
-            x_rel_texto = x_rel + data['left'][i] + data['width'][i] // 2
-            y_rel_texto = y_rel + data['top'][i]  + data['height'][i] // 2
-
-            resultados.append({
-                'texto': texto,
-                'conf' : conf,
-                'x_rel': x_rel_texto,
-                'y_rel': y_rel_texto,
-                'largura': data['width'][i],
-                'altura' : data['height'][i],
-            })
-
-            print(f"  ✓ '{texto}' (conf={conf}%) "
-                  f"em ({x_rel_texto}, {y_rel_texto})")
-
-        if not resultados:
-            print("⚠️ Nenhum texto com confiança mínima encontrado na grade.")
-
-        return resultados
     
+    def ordenar_e_verificar_saldo_maior_ou_igual_por_linhas(
+        self,
+        x_qtde_header, y_qtde_header,
+        quantidade_n8n,
+        regiao_qtde,
+        tolerancia=0.01,
+        confianca_minima_ocr=5,
+        max_tentativas_ordenacao=3,
+        preprocessing_config_qtde=None,
+        altura_linha=18,
+        margem_superior=0,
+        margem_inferior=0
+    ):
+        q_n8n = self._to_float(quantidade_n8n)
+        ultima_lista = []
+
+        for tentativa in range(1, max_tentativas_ordenacao + 1):
+            self.clicar_coordenadas_fixas(x_qtde_header, y_qtde_header, tipo_clique="double", pausar=0.7)
+            time.sleep(1)
+
+            lista_grade = self._ler_e_processar_quantidades_grade_por_linhas(
+                regiao_qtde=regiao_qtde,
+                confianca_minima=confianca_minima_ocr,
+                preprocessing_config=preprocessing_config_qtde,
+                altura_linha=altura_linha,
+                margem_superior=margem_superior,
+                margem_inferior=margem_inferior
+            ) or []
+
+            ultima_lista = lista_grade
+
+            if not lista_grade:
+                continue
+
+            # ✅ saldo suficiente = existe algum valor >= solicitado
+            for q in lista_grade:
+                qf = self._to_float(q)
+                if qf >= q_n8n - tolerancia:
+                    return {
+                        "bate": True,
+                        "quantidade_encontrada_grade": qf,
+                        "quantidade_n8n": q_n8n,
+                        "lista_grade": lista_grade,
+                        "tentativa": tentativa
+                    }
+
+        return {
+            "bate": False,
+            "quantidade_encontrada_grade": 0.0,
+            "quantidade_n8n": self._to_float(quantidade_n8n),
+            "lista_grade": ultima_lista
+        }
+        
     # Adicione este método dentro da classe AutomacaoOCR em automacao_cliques.py
     def aguardar_popup_informacao(self, timeout=60, intervalo=2, confianca_minima=15):
         """
@@ -1480,117 +1416,798 @@ class AutomacaoOCR:
         self.limpar_cache_ocr()
         print("✓ Clique em coordenadas fixas executado!")
         return True    
+
+    def _normalizar_valor_ocr_brasil(self, texto):
+        """
+        Converte textos OCR no formato BR para float.
+
+        Exemplos:
+            '400,00000'   -> 400.0
+            '8.640,00000' -> 8640.0
+            '200'         -> 200.0
+        """
+
+        if not texto:
+            return None
+
+        texto = str(texto).strip()
+        texto = re.sub(r'[^0-9.,]', '', texto)
+
+        if not texto:
+            return None
+
+        if ',' in texto:
+            texto = texto.replace('.', '').replace(',', '.')
+        else:
+            partes = texto.split('.')
+            if len(partes) > 1:
+                texto = ''.join(partes[:-1]) + '.' + partes[-1]
+
+        try:
+            return float(texto)
+        except ValueError:
+            return None
+
+    def _to_float(self, valor, default=0.0):
+        """
+        Converte valor (int/float/str BR) para float com segurança.
+        Aceita '400,00000', '8.640,00000', '200', 200, 200.0 etc.
+        """
+        if valor is None:
+            return float(default)
+
+        if isinstance(valor, (int, float)):
+            return float(valor)
+
+        v = self._normalizar_valor_ocr_brasil(str(valor))
+        return float(v) if v is not None else float(default)
+
+    def _to_int_str_erp(self, valor, tolerancia=1e-6):
+        """
+        Converte valor (int/float/str BR) para string INTEIRA (ex.: '8640').
+
+        Aceita:
+        - '8.640,00000' -> '8640'
+        - '217.0'       -> '217'
+        - 217           -> '217'
+
+        Se vier fracionado de verdade (ex.: '217,5'), retorna erro (não inventa).
+        """
+        q = self._to_float(valor, default=None)
+        if q is None:
+            raise ValueError(f"Quantidade inválida: {valor!r}")
+
+        q_arred = round(q)
+
+        if abs(q - q_arred) > tolerancia:
+            # Inteiro-only: melhor falhar do que salvar quantidade errada
+            raise ValueError(f"Quantidade não-inteira para campo inteiro: {valor!r} -> {q}")
+
+        return str(int(q_arred))
     
-    # NOVO MÉTODO: Ordenar e verificar quantidade
-    def ordenar_e_verificar_quantidade(self,
-                                        x_qtde_header, y_qtde_header,
-                                        quantidade_n8n,
-                                        tolerancia=0.01,
-                                        confianca_minima_ocr=10,
-                                        max_tentativas_ordenacao=2):
+    def _extrair_candidatos_ocr_da_faixa(self, regiao_faixa, confianca_minima=5, preprocessing_config=None):
         """
-        Tenta ordenar a coluna 'Qtde.' e verifica se a soma das quantidades
-        na grade corresponde à quantidade esperada do N8N.
-        Reordena se a primeira tentativa não for suficiente.
-
-        Args:
-            x_qtde_header, y_qtde_header: Coordenadas do cabeçalho da coluna 'Qtde.'.
-            quantidade_n8n: Quantidade esperada do N8N.
-            tolerancia: Tolerância para a comparação de quantidades.
-            confianca_minima_ocr: Confiança mínima para o OCR.
-            max_tentativas_ordenacao: Número máximo de vezes para tentar ordenar a coluna.
-
-        Returns:
-            dict: O mesmo dicionário de resultado de `verificar_soma_quantidades_grade`.
+        Executa OCR em uma faixa única da coluna Qtde. e retorna candidatos válidos.
         """
-        print(f"\n🔄 Iniciando ordenação e verificação para quantidade N8N: {quantidade_n8n}")
-        quantidade_n8n = float(quantidade_n8n)
 
-        for tentativa_ordem in range(1, max_tentativas_ordenacao + 1):
-            print(f"   Tentativa de ordenação {tentativa_ordem}/{max_tentativas_ordenacao}...")
+        self.limpar_cache_ocr()
 
-            # Clica no cabeçalho da coluna "Qtde." para ordenar
-            # O primeiro clique ordena do menor para o maior.
-            # O segundo clique ordena do maior para o menor.
-            # Se max_tentativas_ordenacao for 1, ele só clica uma vez (menor para maior).
-            # Se for 2, ele clica uma vez, verifica, e se não bater, clica de novo (maior para menor) e verifica.
-            self.clicar_coordenadas_fixas(x_qtde_header, y_qtde_header, tipo_clique='double', pausar=0.7)
-            time.sleep(1) # Pequena pausa para a ordenação ser aplicada visualmente
+        resultado_ocr = self.processar_ocr(
+            regiao=regiao_faixa,
+            forcar_nova=True,
+            preprocessing_config=preprocessing_config
+        )
 
-            # Verifica a soma das quantidades na grade
-            resultado_qtde = self.verificar_soma_quantidades_grade(
-                quantidade_n8n=quantidade_n8n,
-                tolerancia=tolerancia,
-                confianca_minima=confianca_minima_ocr
-            )
+        if not resultado_ocr:
+            return []
 
-            if resultado_qtde['bate'] or resultado_qtde['soma_grade'] >= quantidade_n8n:
-                print(f"✅ Quantidade OK após ordenação (tentativa {tentativa_ordem}).")
-                return resultado_qtde
-            else:
-                print(f"❌ Quantidade NÃO CONFERE após ordenação (tentativa {tentativa_ordem}).")
-                print(f"   Grade: {resultado_qtde['soma_grade']} | N8N: {resultado_qtde['quantidade_n8n']}")
-                print(f"   Lista na grade: {resultado_qtde['lista_grade']}")
-                if tentativa_ordem < max_tentativas_ordenacao:
-                    print("   Tentando reordenar a coluna...")
-                else:
-                    print("   Máximo de tentativas de ordenação atingido.")
+        data = resultado_ocr['data']
+        candidatos = []
 
-        print("⚠️  Não foi possível validar a quantidade após todas as tentativas de ordenação.")
-        return resultado_qtde # Retorna o último resultado, mesmo que não tenha batido
-    
-    # NOVO MÉTODO: Leitura de Part Numbers da grade (se necessário)
-    def ler_part_numbers_grade(self, regiao_part_number, confianca_minima=10):
+        # aceita:
+        # 400,00000
+        # 8.640,00000
+        # 200
+        padrao_numero = r'\d{1,3}(?:\.\d{3})*,\d+|\d+,\d+|\d+'
+
+        for i in range(len(data['text'])):
+            texto = str(data['text'][i]).strip()
+            if not texto:
+                continue
+
+            try:
+                conf = int(float(data['conf'][i]))
+            except Exception:
+                conf = 0
+
+            if conf < confianca_minima:
+                continue
+
+            encontrados = re.findall(padrao_numero, texto)
+            for trecho in encontrados:
+                valor = self._normalizar_valor_ocr_brasil(trecho)
+                if valor is None or valor <= 0:
+                    continue
+
+                candidatos.append({
+                    'texto': trecho,
+                    'valor': valor,
+                    'conf': conf
+                })
+
+        return candidatos
+
+    def _gerar_faixas_linhas_coluna(self, regiao_qtde, altura_linha=18, margem_superior=0, margem_inferior=0):
         """
-        Lê Part Numbers de uma região específica da grade.
-        Aplica pré-processamento para melhorar a leitura de caracteres alfanuméricos.
+        Divide a região da coluna Qtde. em várias faixas horizontais.
+        Cada faixa representa uma linha da grade.
         """
-        print(f"\n🔍 Lendo Part Numbers da grade na região: {regiao_part_number}...")
+        x, y, w, h = regiao_qtde
+
+        y_inicio = y + margem_superior
+        h_util = h - margem_superior - margem_inferior
+
+        if h_util <= 0:
+            return []
+
+        faixas = []
+        y_atual = y_inicio
+
+        while y_atual < y_inicio + h_util:
+            altura_real = min(altura_linha, (y_inicio + h_util) - y_atual)
+            faixas.append((x, y_atual, w, altura_real))
+            y_atual += altura_linha
+
+        return faixas
+
+    def debug_faixas_coluna_qtde(self, regiao_qtde, altura_linha=18, margem_superior=0, margem_inferior=0,
+                                 nome_arquivo='debug_faixas_qtde.png'):
+        """
+        Gera imagem de debug com as faixas das linhas desenhadas sobre a coluna Qtde.
+        """
+        if not self.captura.janela_atual:
+            print("❌ Nenhuma janela selecionada")
+            return False
+
+        screenshot = self.captura.capturar(forcar_nova=True)
+        if not screenshot:
+            print("❌ Falha ao capturar screenshot")
+            return False
+
+
+        draw = ImageDraw.Draw(screenshot)
+        faixas = self._gerar_faixas_linhas_coluna(
+            regiao_qtde=regiao_qtde,
+            altura_linha=altura_linha,
+            margem_superior=margem_superior,
+            margem_inferior=margem_inferior
+        )
+
+        for idx, (x, y, w, h) in enumerate(faixas, start=1):
+            draw.rectangle([(x, y), (x + w, y + h)], outline='red', width=2)
+            draw.text((x + 2, y + 2), str(idx), fill='red')
+
+        screenshot.save(nome_arquivo)
+        print(f"✓ Debug das faixas salvo em: {nome_arquivo}")
+        return True
+
+    def ler_quantidades_grade_por_linhas(self,
+                                         regiao_qtde,
+                                         confianca_minima=5,
+                                         preprocessing_config=None,
+                                         altura_linha=18,
+                                         margem_superior=0,
+                                         margem_inferior=0,
+                                         max_linhas_vazias_seguidas=3):
+        """
+        Lê a coluna Qtde. separando a região em linhas.
+        Mantém o código atual intacto e cria um fluxo alternativo mais assertivo.
+        """
+        print("\n🔍 Lendo coluna 'Qtde.' por linhas da grade...")
 
         if not self.captura.janela_atual:
             print("❌ Nenhuma janela selecionada")
             return []
 
-        # Configuração de pré-processamento específica para Part Numbers
-        # Inclui letras, números e hífens/barras comuns em PNs
-        preprocessing_config_pn = {
-            'amplify_factor': 3,
-            'grayscale': True,
-            'contrast': 2.0,
-            'threshold': 150, # Pode precisar de ajuste fino
-            'whitelist': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/.',
-            'psm': 6 # Assume uma única linha de texto por item
-        }
-
-        resultado_ocr = self.processar_ocr(
-            regiao=regiao_part_number,
-            forcar_nova=True,
-            preprocessing_config=preprocessing_config_pn
+        faixas = self._gerar_faixas_linhas_coluna(
+            regiao_qtde=regiao_qtde,
+            altura_linha=altura_linha,
+            margem_superior=margem_superior,
+            margem_inferior=margem_inferior
         )
 
-        if not resultado_ocr:
-            print("❌ Falha ao processar OCR dos Part Numbers.")
+        if not faixas:
+            print("❌ Nenhuma faixa de linha foi gerada")
             return []
 
-        data = resultado_ocr['data']
-        part_numbers = []
+        quantidades = []
+        vazias_seguidas = 0
 
-        print("\n📜 OCR bruto dos Part Numbers (após pré-processamento):")
-        for i in range(len(data['text'])):
-            texto = data['text'][i].strip()
-            if not texto: continue
-            try: conf = int(data['conf'][i])
-            except ValueError: conf = 0
-            print(f"  Texto='{texto}' | conf={conf}%")
+        for idx, faixa in enumerate(faixas, start=1):
+            print(f"\n📏 Linha {idx} | faixa={faixa}")
 
-            if conf < confianca_minima:
-                print(f"    ↳ descartado (conf {conf}% < mínimo {confianca_minima}%)")
+            candidatos = self._extrair_candidatos_ocr_da_faixa(
+                regiao_faixa=faixa,
+                confianca_minima=confianca_minima,
+                preprocessing_config=preprocessing_config
+            )
+
+            if not candidatos:
+                print("   ↳ sem candidatos válidos")
+                vazias_seguidas += 1
+
+                if vazias_seguidas >= max_linhas_vazias_seguidas:
+                    print("   ↳ muitas linhas vazias seguidas, encerrando leitura")
+                    break
+
                 continue
 
-            # Limpeza básica do Part Number
-            limpo = texto.replace(' ', '').replace('.', '').replace(',', '')
-            part_numbers.append(limpo)
-            print(f"    ✓ Part Number aceito: {limpo}")
+            vazias_seguidas = 0
 
-        print(f"\n📋 Part Numbers extraídos: {part_numbers}")
-        return part_numbers
+            melhor = sorted(
+                candidatos,
+                key=lambda x: (x['conf'], len(str(x['texto']))),
+                reverse=True
+            )[0]
+
+            quantidades.append(melhor['valor'])
+            print(
+                f"   ✓ melhor candidato: texto='{melhor['texto']}' | "
+                f"valor={melhor['valor']} | conf={melhor['conf']}"
+            )
+
+        print(f"\n✅ Quantidades extraídas por linha: {quantidades}")
+        return quantidades
+
+    def _ler_e_processar_quantidades_grade_por_linhas(self,
+                                                      regiao_qtde,
+                                                      confianca_minima=5,
+                                                      preprocessing_config=None,
+                                                      altura_linha=18,
+                                                      margem_superior=0,
+                                                      margem_inferior=0):
+        """
+        Helper interno para leitura da coluna Qtde. por linhas.
+        """
+        print("\n📊 Lendo e processando quantidades da grade por linhas...")
+
+        quantidades_grade = self.ler_quantidades_grade_por_linhas(
+            regiao_qtde=regiao_qtde,
+            confianca_minima=confianca_minima,
+            preprocessing_config=preprocessing_config,
+            altura_linha=altura_linha,
+            margem_superior=margem_superior,
+            margem_inferior=margem_inferior
+        )
+
+        if not quantidades_grade:
+            print("⚠️  Nenhuma quantidade lida da grade por linhas.")
+
+        return quantidades_grade
+    
+    def ordenar_e_verificar_quantidade_por_linhas(self,
+                                                  x_qtde_header, y_qtde_header,
+                                                  quantidade_n8n,
+                                                  regiao_qtde,
+                                                  tolerancia=0.01,
+                                                  confianca_minima_ocr=5,
+                                                  max_tentativas_ordenacao=3,
+                                                  preprocessing_config_qtde=None,
+                                                  altura_linha=18,
+                                                  margem_superior=0,
+                                                  margem_inferior=0):
+        """
+        Ordena a coluna Qtde. e lê quantidades por linhas.
+        Mantém seu comportamento atual (verifica se existe algum <= N8N),
+        mas agora:
+          - normaliza quantidade_n8n com _to_float (aceita vírgula)
+          - retorna a última lista_grade lida mesmo quando falha
+        """
+        print(f"\n🔄 Iniciando ordenação e verificação por linhas para quantidade N8N: {quantidade_n8n}")
+
+        quantidade_n8n = self._to_float(quantidade_n8n)
+        quantidade_encontrada_grade = 0.0
+        quantidades_grade = []  # <-- guarda última leitura
+
+        for tentativa_ordem in range(1, max_tentativas_ordenacao + 1):
+            print(f"   Tentativa de ordenação {tentativa_ordem}/{max_tentativas_ordenacao}...")
+
+            self.clicar_coordenadas_fixas(x_qtde_header, y_qtde_header, tipo_clique='double', pausar=0.7)
+            time.sleep(1)
+
+            quantidades_grade = self._ler_e_processar_quantidades_grade_por_linhas(
+                regiao_qtde=regiao_qtde,
+                confianca_minima=confianca_minima_ocr,
+                preprocessing_config=preprocessing_config_qtde,
+                altura_linha=altura_linha,
+                margem_superior=margem_superior,
+                margem_inferior=margem_inferior
+            )
+
+            if not quantidades_grade:
+                print("⚠️  Nenhuma quantidade lida da grade após ordenação.")
+                if tentativa_ordem < max_tentativas_ordenacao:
+                    print("   Tentando reordenar a coluna...")
+                    continue
+                else:
+                    print("   Máximo de tentativas de ordenação atingido sem ler quantidades.")
+                    break
+
+            print(f"   Quantidades lidas da grade: {quantidades_grade}")
+
+            bate = False
+            diferenca = 0.0
+
+            for qtde_lida in quantidades_grade:
+                diferenca = abs(qtde_lida - quantidade_n8n)
+                if qtde_lida <= quantidade_n8n + tolerancia:
+                    print(f"   ✅ Remessa {qtde_lida} na grade é <= N8N {quantidade_n8n}.")
+                    bate = True
+                    quantidade_encontrada_grade = qtde_lida
+                    break
+
+            if bate:
+                return {
+                    'bate': True,
+                    'quantidade_encontrada_grade': quantidade_encontrada_grade,
+                    'quantidade_n8n': quantidade_n8n,
+                    'diferenca': diferenca,
+                    'lista_grade': quantidades_grade
+                }
+
+        return {
+            'bate': False,
+            'quantidade_encontrada_grade': quantidade_encontrada_grade,
+            'quantidade_n8n': quantidade_n8n,
+            'diferenca': abs(quantidade_encontrada_grade - quantidade_n8n) if quantidade_encontrada_grade else 0.0,
+            'lista_grade': quantidades_grade  # <-- aqui era [] (perdia debug)
+        }
+    
+    def ordenar_e_ler_quantidades_por_linhas(self,
+                                            x_qtde_header, y_qtde_header,
+                                            regiao_qtde,
+                                            confianca_minima_ocr=5,
+                                            max_tentativas_ocr=3,
+                                            preprocessing_config_qtde=None,
+                                            altura_linha=18,
+                                            margem_superior=0,
+                                            margem_inferior=0):
+        """
+        Só faz: ordenar coluna + ler lista de quantidades.
+        Tenta novamente APENAS se o OCR vier vazio (não fica alternando ordenação por lógica de negócio).
+        """
+        ultima_lista = []
+
+        for tentativa in range(1, max_tentativas_ocr + 1):
+            print(f"   Ordenar+Ler Qtde (tentativa OCR {tentativa}/{max_tentativas_ocr})...")
+
+            # Ordena (seu comportamento atual)
+            self.clicar_coordenadas_fixas(x_qtde_header, y_qtde_header, tipo_clique='double', pausar=0.7)
+            time.sleep(1)
+
+            lista = self._ler_e_processar_quantidades_grade_por_linhas(
+                regiao_qtde=regiao_qtde,
+                confianca_minima=confianca_minima_ocr,
+                preprocessing_config=preprocessing_config_qtde,
+                altura_linha=altura_linha,
+                margem_superior=margem_superior,
+                margem_inferior=margem_inferior
+            ) or []
+
+            ultima_lista = lista
+
+            if lista:
+                return lista  # ✅ lista boa, acabou
+
+            print("⚠️  OCR retornou lista vazia.")
+
+        return ultima_lista
+
+    def conferir_quantidade_menor_ou_igual_por_linhas(self,
+                                                    x_qtde_header, y_qtde_header,
+                                                    quantidade_n8n,
+                                                    regiao_qtde,
+                                                    tolerancia=0.01,
+                                                    confianca_minima_ocr=5,
+                                                    max_tentativas_ocr=2,
+                                                    preprocessing_config_qtde=None,
+                                                    altura_linha=18,
+                                                    margem_superior=0,
+                                                    margem_inferior=0):
+        """
+        ROBÔ 1: Confere se existe alguma remessa <= N8N.
+        """
+        q_n8n = self._to_float(quantidade_n8n)
+
+        lista_grade = self.ordenar_e_ler_quantidades_por_linhas(
+            x_qtde_header=x_qtde_header,
+            y_qtde_header=y_qtde_header,
+            regiao_qtde=regiao_qtde,
+            confianca_minima_ocr=confianca_minima_ocr,
+            max_tentativas_ocr=max_tentativas_ocr,
+            preprocessing_config_qtde=preprocessing_config_qtde,
+            altura_linha=altura_linha,
+            margem_superior=margem_superior,
+            margem_inferior=margem_inferior
+        )
+
+        if not lista_grade:
+            return {
+                'bate': False,
+                'quantidade_encontrada_grade': 0.0,
+                'quantidade_n8n': q_n8n,
+                'diferenca': 0.0,
+                'lista_grade': []
+            }
+
+        for q in lista_grade:
+            qf = self._to_float(q)
+            if qf <= q_n8n + tolerancia:
+                return {
+                    'bate': True,
+                    'quantidade_encontrada_grade': qf,
+                    'quantidade_n8n': q_n8n,
+                    'diferenca': abs(qf - q_n8n),
+                    'lista_grade': lista_grade
+                }
+
+        return {
+            'bate': False,
+            'quantidade_encontrada_grade': 0.0,
+            'quantidade_n8n': q_n8n,
+            'diferenca': 0.0,
+            'lista_grade': lista_grade
+        }
+    
+    # ============================================================
+    # HELPERS — ROBÔ 2 (MONTAGEM): SELECIONAR LINHA COM QTDE >= N8N
+    # ============================================================
+
+    def escolher_linha_por_qtde_maior_ou_igual(self, lista_grade, quantidade_n8n, tolerancia=0.01):
+        """
+        Seleção:
+          1) pega a primeira linha com qtde ~= N8N (dif <= tolerancia)
+          2) senão, pega a linha com MENOR qtde que seja >= N8N
+          3) se não existir, retorna None
+        """
+        q_n8n = self._to_float(quantidade_n8n)
+
+        iguais = []
+        maiores = []
+
+        for i, q in enumerate(lista_grade):
+            qf = self._to_float(q)
+            if abs(qf - q_n8n) <= tolerancia:
+                iguais.append((i, qf))
+            elif qf > q_n8n + tolerancia:
+                maiores.append((i, qf))
+
+        if iguais:
+            i, qf = iguais[0]
+            return {"index": i, "qtde": qf, "tipo": "igual"}
+
+        if maiores:
+            i, qf = min(maiores, key=lambda t: t[1])  # menor acima do necessário
+            return {"index": i, "qtde": qf, "tipo": "maior"}
+
+        return None
+
+    def clicar_linha_na_coluna(self, regiao_coluna, indice_linha, altura_linha=18,
+                              offset_x=20, offset_y=0, pausar=0.2):
+        """
+        Clica na linha N dentro de uma região (x,y,w,h) relativa à janela.
+        """
+        if not self.captura.janela_atual:
+            print("❌ Nenhuma janela principal selecionada.")
+            return False
+
+        x, y, w, h = regiao_coluna
+        x_rel = x + min(max(offset_x, 1), w - 2)
+        y_rel = y + int(indice_linha * altura_linha + (altura_linha / 2)) + offset_y
+
+        coords = self.captura.obter_posicao_absoluta(x_rel, y_rel)
+        if not coords:
+            print("❌ Não foi possível obter coordenadas absolutas para clicar na linha.")
+            return False
+
+        x_abs, y_abs = coords
+        pyautogui.click(x_abs, y_abs)
+        time.sleep(pausar)
+        self.limpar_cache_ocr()
+        return True
+
+    def selecionar_linha_com_saldo_por_qtde(self,
+                                        x_qtde_header, y_qtde_header,
+                                        quantidade_n8n,
+                                        regiao_qtde,
+                                        tolerancia=0.01,
+                                        confianca_minima_ocr=5,
+                                        max_tentativas_ordenacao=3,
+                                        preprocessing_config_qtde=None,
+                                        altura_linha=18,
+                                        margem_superior=0,
+                                        margem_inferior=0,
+                                        offset_click_x=20,
+                                        offset_click_y=0):
+        """
+        ROBÔ 2:
+        - tenta ordenar (double) + ler + escolher linha >= N8N
+        - repete a ordenação se ainda não encontrar linha válida
+        - ao selecionar, clica a seta (670,430)
+        """
+        q_n8n = self._to_float(quantidade_n8n)
+        ultima_lista = []
+
+        for tentativa in range(1, max_tentativas_ordenacao + 1):
+            print(f"\n🔃 [ROBÔ 2] Tentativa {tentativa}/{max_tentativas_ordenacao} — ordenar (double) + ler + escolher...")
+
+            # 1) Ordena (no seu sistema TEM que ser double)
+            self.clicar_coordenadas_fixas(x_qtde_header, y_qtde_header, tipo_clique='double', pausar=0.7)
+            time.sleep(1)
+
+            # 2) Lê a lista
+            lista_grade = self._ler_e_processar_quantidades_grade_por_linhas(
+                regiao_qtde=regiao_qtde,
+                confianca_minima=confianca_minima_ocr,
+                preprocessing_config=preprocessing_config_qtde,
+                altura_linha=altura_linha,
+                margem_superior=margem_superior,
+                margem_inferior=margem_inferior
+            ) or []
+
+            ultima_lista = lista_grade
+            print(f"   📋 lista_grade: {lista_grade}")
+
+            if not lista_grade:
+                print("   ⚠️ OCR vazio; tentando ordenar/ler de novo...")
+                continue
+
+            # 3) Escolhe linha >= N8N
+            escolha = self.escolher_linha_por_qtde_maior_ou_igual(
+                lista_grade=lista_grade,
+                quantidade_n8n=q_n8n,
+                tolerancia=tolerancia
+            )
+
+            if not escolha:
+                print("   ⚠️ Nenhuma linha >= N8N nesta leitura; tentando reordenar...")
+                continue
+
+            # 4) Clica na linha
+            clicou = self.clicar_linha_na_coluna(
+                regiao_coluna=regiao_qtde,
+                indice_linha=escolha["index"],
+                altura_linha=altura_linha,
+                offset_x=offset_click_x,
+                offset_y=offset_click_y,
+                pausar=0.2
+            )
+
+            if not clicou:
+                print("   ⚠️ Falhou clique na linha; tentando de novo...")
+                continue
+
+            time.sleep(1)
+
+            # 5) Clica a seta para subir PN para a grade superior
+            self.clicar_coordenadas_fixas(670, 430, tipo_clique='single', pausar=0.8)
+
+            return {
+                "ok": True,
+                "motivo": None,
+                "quantidade_n8n": q_n8n,
+                "lista_grade": lista_grade,
+                "linha_index": escolha["index"],
+                "qtde_lida": escolha["qtde"],
+                "tipo_escolha": escolha["tipo"],
+                "tentativa": tentativa
+            }
+
+        return {
+            "ok": False,
+            "motivo": f"Falhou após {max_tentativas_ordenacao} tentativas (ordenar/ler/selecionar)",
+            "quantidade_n8n": q_n8n,
+            "lista_grade": ultima_lista
+        }
+        
+    def clicar_coordenadas_multiclick(self, x_rel, y_rel, clicks=4, intervalo=0.08, pausar=0.3):
+        """
+        Clica N vezes no mesmo ponto (útil para forçar foco/coluna em grids).
+        """
+        if not self.captura.janela_atual:
+            print("❌ Nenhuma janela principal selecionada.")
+            return False
+
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel, y_rel)
+        pyautogui.click(x_abs, y_abs, clicks=clicks, interval=intervalo)
+        time.sleep(pausar)
+        self.limpar_cache_ocr()
+        return True
+
+    def _formatar_quantidade_para_erp(self, quantidade, casas_decimais=5):
+        """
+        Formata quantidade para colar no ERP.
+        - Se vier string, preserva (ex: '8.640,00000' ou '640,00000')
+        - Se vier número, formata em pt-BR (vírgula decimal).
+        """
+        if quantidade is None:
+            return ""
+
+        if isinstance(quantidade, str):
+            return quantidade.strip()
+
+        try:
+            q = float(quantidade)
+            return f"{q:.{casas_decimais}f}".replace(".", ",")
+        except Exception:
+            return str(quantidade).strip()
+
+    def detectar_y_linha_destacada_por_pixels(
+        self,
+        regiao,  # (x, y, w, h) de uma área da grade ONDE o highlight aparece bem
+        limiar_escuro=120,            # mais alto que 85 (85 é bem agressivo)
+        dark_frac_min=0.55,           # % de pixels escuros para considerar “linha destacada”
+        min_altura_px=8,
+        salvar_debug=False,
+        nome_debug="debug_destaque.png"
+    ):
+        """
+        Detecta o Y (relativo à janela) da linha destacada olhando pixels escuros.
+        Estratégia robusta: por linha, mede fração de pixels abaixo de limiar_escuro.
+
+        Retorno:
+        {ok, motivo, y_rel, segmento, score_escuro}
+        """
+        if not self.captura.janela_atual:
+            return {"ok": False, "motivo": "Nenhuma janela selecionada", "y_rel": None, "segmento": None, "score_escuro": None}
+
+        x, y, w, h = regiao
+        img_pil = self.captura.capturar_regiao(x, y, w, h)
+        if not img_pil:
+            return {"ok": False, "motivo": "Falha ao capturar região", "y_rel": None, "segmento": None, "score_escuro": None}
+
+        img = np.array(img_pil.convert("L"))  # 0=preto, 255=branco
+
+        # Fração de pixels escuros por linha
+        dark_frac = (img < limiar_escuro).mean(axis=1)  # 0..1
+        mask = dark_frac >= dark_frac_min
+
+        melhor = None  # (inicio, fim, score)
+        i = 0
+        while i < len(mask):
+            if not mask[i]:
+                i += 1
+                continue
+            inicio = i
+            while i < len(mask) and mask[i]:
+                i += 1
+            fim = i - 1
+
+            altura = fim - inicio + 1
+            if altura >= min_altura_px:
+                # score: quanto MAIOR dark_frac médio, mais “preto”
+                score = float(dark_frac[inicio:fim+1].mean())
+                if (melhor is None) or (score > melhor[2]) or (score == melhor[2] and altura > (melhor[1] - melhor[0] + 1)):
+                    melhor = (inicio, fim, score)
+
+        if salvar_debug:
+            try:
+                dbg = img_pil.copy().convert("RGB")
+                draw = ImageDraw.Draw(dbg)
+                if melhor:
+                    y0, y1, _ = melhor
+                    draw.rectangle([(0, y0), (w - 1, y1)], outline=(255, 0, 0), width=2)
+                dbg.save(nome_debug)
+            except Exception as e:
+                print(f"⚠️ Falha ao salvar debug: {e}")
+
+        if not melhor:
+            info = {
+                "limiar_escuro": limiar_escuro,
+                "dark_frac_min": dark_frac_min,
+                "dark_frac_max": float(dark_frac.max()) if len(dark_frac) else None,
+                "dark_frac_med": float(np.median(dark_frac)) if len(dark_frac) else None,
+            }
+            return {"ok": False, "motivo": "Não detectou faixa destacada na região", "y_rel": None, "segmento": None, "score_escuro": None, "info": info}
+
+        y0, y1, score = melhor
+        y_centro_local = int((y0 + y1) / 2)
+        y_rel = y + y_centro_local
+
+        return {"ok": True, "motivo": None, "y_rel": y_rel, "segmento": (int(y0), int(y1)), "score_escuro": score}
+
+    def editar_qtde_ultimo_item_com_end(
+        self,
+        quantidade_n8n,
+        x_rel_foco_grade=321, y_rel_foco_grade=320,
+
+        # Recomendo: recorte de uma coluna larga (ex.: Part Number),
+        # onde o preto fica “bem sólido”. Ajuste conforme seu mapeamento.
+        regiao_para_detectar_destaque=(240, 309, 600, 140),
+
+        # Clique numa coluna “segura” (não-Qtde) na linha destacada, se precisar.
+        # Se você realmente precisa clicar em Qtde, mantenha x_rel_qtde_click.
+        x_rel_qtde_click=971,
+
+        pausar_pos_end=0.3,
+        pausar_entre_teclas=0.1,
+        salvar_debug_detecao=False,
+        tentativas_detecao=2
+    ):
+        if not self.captura.janela_atual:
+            return {"ok": False, "motivo": "Nenhuma janela selecionada"}
+
+        ok_foco = self.clicar_coordenadas_fixas(x_rel_foco_grade, y_rel_foco_grade, tipo_clique="single", pausar=0.15)
+        if not ok_foco:
+            return {"ok": False, "motivo": "Falha ao focar a grade"}
+
+        # Evita estar preso em modo edição
+        pyautogui.press("esc")
+        time.sleep(0.05)
+
+        # END + detectar (com retentativa)
+        det = None
+        for _ in range(tentativas_detecao):
+            pyautogui.press("end")
+            time.sleep(pausar_pos_end)
+
+            det = self.detectar_y_linha_destacada_por_pixels(
+                regiao=regiao_para_detectar_destaque,
+                limiar_escuro=120,
+                dark_frac_min=0.55,
+                min_altura_px=8,
+                salvar_debug=salvar_debug_detecao,
+                nome_debug="debug_destaque.png"
+            )
+            if det["ok"]:
+                break
+
+        if not det or not det["ok"]:
+            return {"ok": False, "motivo": f"Falha ao detectar linha destacada: {det.get('motivo')}", "detalhes": det}
+
+        y_rel_click = det["y_rel"]
+
+        # Clique na Qtde (se isso abrir edição automaticamente, ok)
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel_qtde_click, y_rel_click)
+        pyautogui.click(x_abs, y_abs)
+        time.sleep(0.10)
+
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(pausar_entre_teclas)
+        pyautogui.press("delete")
+        time.sleep(pausar_entre_teclas)
+
+        try:
+            quantidade_txt = self._to_int_str_erp(quantidade_n8n)
+        except ValueError as e:
+            return {"ok": False, "motivo": str(e)}
+
+        pyperclip.copy(quantidade_txt)
+        time.sleep(0.05)
+        pyautogui.hotkey("ctrl", "v")
+        time.sleep(0.5)
+
+        # ENTER salva
+        #pyautogui.press("enter")
+        #time.sleep(0.20)
+
+        self.limpar_cache_ocr()
+        time.sleep(0.2)
+        return {"ok": True, "motivo": None, "qtde_colada": quantidade_txt, "y_rel_detectado": y_rel_click, "segmento_local": det["segmento"], "score_escuro": det["score_escuro"]}
+    
+    @staticmethod
+    def data_iso_para_ddmmaaaa(data_iso: str) -> str:
+        """
+        Aceita '2026-02-27' e também '2026-02-27 00:00:00' / '2026-02-27T00:00:00'
+        Retorna '27/02/2026'
+        """
+        s = str(data_iso).strip()
+        if not s:
+            raise ValueError("data_fatura vazia")
+
+        # se vier com espaço ao invés de T, normaliza pro fromisoformat entender
+        if " " in s and "T" not in s:
+            s = s.replace(" ", "T", 1)
+
+        dt = datetime.fromisoformat(s)
+        return dt.strftime("%d/%m/%Y")

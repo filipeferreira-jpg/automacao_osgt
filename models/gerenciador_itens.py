@@ -17,6 +17,9 @@ class GerenciadorItens:
         self.itens = []
         self.item_atual_index = 0
         self.fatura_id = None
+        # cabecalho fatura
+        self.numero_fatura = None
+        self.data_fatura = None
 
     # ─────────────────────────────────────────
     # CARREGAMENTO
@@ -48,6 +51,9 @@ class GerenciadorItens:
                 # Novo formato: { "invoice_id": X, "items": [...] }
                 if 'items' in primeiro:
                     items_raw = primeiro['items']
+                    # extrair de 'primeiro'
+                    self.numero_fatura = primeiro.get('invoice_number')
+                    self.data_fatura = primeiro.get('invoice_date')
 
                     # items pode vir como string JSON ou já como lista
                     if isinstance(items_raw, str):
@@ -116,7 +122,7 @@ class GerenciadorItens:
             print(f"❌ Erro ao enviar para N8N: {e}")
             return False
 
-    def enviar_relatorio_final(self, itens_nao_encontrados, itens_divergentes_qtde, itens_encontrados):
+    def enviar_relatorio_final(self, itens_nao_encontrados, itens_sem_saldo, itens_encontrados):
         """
         Envia relatório final consolidado ao N8N contendo:
         - Itens não encontrados no sistema
@@ -124,7 +130,7 @@ class GerenciadorItens:
 
         Args:
             itens_nao_encontrados: Lista de dicts com itens que não foram encontrados
-            itens_divergentes_qtde: Lista de dicts com itens com quantidade divergente
+            itens_sem_saldo: Lista de dicts com itens com quantidade insuficiente
 
         Returns:
             True se enviou com sucesso, False caso contrário
@@ -135,17 +141,17 @@ class GerenciadorItens:
             "fatura_id": self.fatura_id,
             "resumo": {
                 "total_nao_encontrados" : len(itens_nao_encontrados),
-                "total_divergentes_qtde": len(itens_divergentes_qtde),
+                "total_divergentes_qtde": len(itens_sem_saldo),
                 "total_encontrados"     : len(itens_encontrados),
             },
             "itens_nao_encontrados"  : itens_nao_encontrados,
-            "itens_divergentes_qtde" : itens_divergentes_qtde,
+            "itens_sem_saldo" : itens_sem_saldo,
             "itens_encontrados"      : itens_encontrados,
         }
 
         print(f"\n📤 Enviando relatório final ao N8N...")
         print(f"   ❌ Não encontrados:   {len(itens_nao_encontrados)}")
-        print(f"   ⚠️  Qtde. divergente: {len(itens_divergentes_qtde)}")
+        print(f"   ⚠️  Qtde. divergente: {len(itens_sem_saldo)}")
 
         try:
             response = requests.post(

@@ -181,17 +181,17 @@ time.sleep(2)
 # ============================================================
 # CHAMADA DO load_invoice.py
 # ============================================================
-print("\n📍 CHAMANDO load_invoice.py...")
+print("\n📍 CHAMANDO load_invoice_new.py...")
 print("-"*60)
 
 resultado = subprocess.run(
-    [sys.executable, "load_invoice.py"],
+    [sys.executable, "load_invoice_new.py"],
     capture_output=False,  # False = mostra output em tempo real no terminal
     text=True
 )
 
 if resultado.returncode != 0:
-    print("❌ load_invoice.py falhou! Abortando logoff.")
+    print("❌ load_invoice_new.py falhou! Abortando logoff.")
     raise Exception("Falha no load_invoice.py")
 
 print("✅ load_invoice.py concluído com sucesso!")

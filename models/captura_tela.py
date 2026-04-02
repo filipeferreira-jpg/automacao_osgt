@@ -16,7 +16,7 @@ class CapturaTela:
         self.ultima_captura = None
         self.janela_atual = None
 
-    def encontrar_janela(self, titulo_parcial, timeout=10):
+    def encontrar_janela(self, titulo_parcial, timeout=60):
         """
         Encontra janela pelo título (busca parcial)
 

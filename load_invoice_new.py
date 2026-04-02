@@ -8,6 +8,23 @@ import pyperclip
 from models.captura_tela import CapturaTela
 from models.automacao_cliques import AutomacaoOCR
 
+X_QTDE_HEADER = 948 # Coordenada X do cabeçalho "Qtde."
+Y_QTDE_HEADER = 525 # Coordenada Y do cabeçalho "Qtde."
+REGIAO_QTDE = (885, 540, 90, 150) # Região da coluna 'Qtde.' na grade
+
+    # Configuração de pré-processamento para o OCR de quantidades
+preprocessing_config_qtde = {
+    'amplify_factor': 4, # Amplia a imagem em 4x para melhorar a leitura de números pequenos
+    'grayscale': True,
+    'contrast': 2.6,
+    'threshold': 170, # Ajuste este valor (0-255) se os números não estiverem claros
+    #'invert': False,
+    'whitelist': '0123456789,.',
+    'psm': 7,
+    'debug_filename_prefix': 'debug_qtde_ocr' # Prefixo para salvar imagens de debug
+}
+
+
 # Inicializa o gerenciador
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
@@ -15,7 +32,7 @@ gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 if not gerenciador.carregar_do_n8n(fatura_id=25):
     raise Exception("❌ Falha ao carregar itens do N8N")
 # ─── LIMITADOR DE TESTE ───────────────────────────────────
-gerenciador.itens = gerenciador.itens [:9]# ← Pega apenas os 5 primeiross
+gerenciador.itens = gerenciador.itens #[:9]# ← Pega apenas os 5 primeiross
 # CONTROLE DE ITENS
 print(f"✅ {gerenciador.total_itens()} itens prontos para processar")
 
@@ -33,7 +50,7 @@ auto_ocr.criar_mapa_visual('debug_macro-item_ocr.png')
 # ─────────────────────────────────────────────────────────
 itens_nao_encontrados = []   # itens_nao_encontrados → acumula tudo que o popup "Nenhum item foi encontrado!" disparou
 itens_encontrados     = []   # itens_encontrados → acumula tudo que passou sem popup
-itens_divergentes_qtde = []  # itens_divergentes_qtde → acumula tudo que passou mas a quantidade não bateu (comparação entre N8N e soma da grade)
+itens_sem_saldo  = []  # itens_sem_saldo → acumula tudo que passou mas a quantidade não bateu (comparação entre N8N e soma da grade)
 
 # ─────────────────────────────────────────────────────────,
 #item = gerenciador.proximo_item()
@@ -48,7 +65,9 @@ auto_ocr.preencher_campo_por_clipboard(342, 494, num_ordem_fatura, pausar=1)
 # As coordenadas (955, 525) e (965, 525) são baseadas na tela 1366x768
 print("\n Ajustando largura da coluna 'Quantidade' na grade...")
 auto_ocr.arrastar_coluna_quantidade(955, 525, 972, 525, duracao_arraste=0.3, pausar=0.5)
-
+# =========================
+# LOOP ITENS
+# =========================
 while gerenciador.tem_proximo():
 
     # Pega o próximo item
@@ -64,7 +83,7 @@ while gerenciador.tem_proximo():
 
     print(f"\n{'─'*60}")
     print(f"📦 [{progresso['atual']}/{progresso['total']}] {part_number}")
-    print(f"   Ordem: {num_ordem} | Qtde: {quantity} | Total: {total_value}")
+    print(f"   Ordem: {num_ordem} | Qtde: {quantity} ")
     print("─"*60)
 
     # num_ordem não preenche dentro do loop pois é fixo por fatura
@@ -76,7 +95,7 @@ while gerenciador.tem_proximo():
     
     #sucesso = auto_ocr.preencher_campo_por_clipboard(714,494,part_number,pausar=1)
     # 3. Clica em Busca
-    auto_ocr.clicar_em_texto('Busca', pausar=2, confianca_minima=25)
+    auto_ocr.clicar_em_texto('Busca', pausar=1, confianca_minima=25)
 
     # 4. Clica no botão OK (que aparece após a busca) - usando coordenadas fixas porque OCR não esta mapeado para este item
     #x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(687, 409)
@@ -102,7 +121,6 @@ while gerenciador.tem_proximo():
             'net_price'  : net_price,
             'total_value': total_value
         })
-        #print(f"➡️  [{len(itens_nao_encontrados)} não encontrado(s) até agora]")
         continue # pula para o próximo item do loop sem executar o restante do código abaixo
     
     # ── Item encontrado na grade ──
@@ -113,78 +131,57 @@ while gerenciador.tem_proximo():
         'net_price'  : net_price,
         'total_value': total_value
     })
-    X_QTDE_HEADER = 948 # <--- COORDENADA X DO CABEÇALHO "Qtde." 
-    Y_QTDE_HEADER = 525 # <--- COORDENADA Y DO CABEÇALHO "Qtde."
-    #print(f"\n⬆️⬇️ Ordenando coluna 'Qtde.' (duplo clique)...")
-    #auto_ocr.clicar_coordenadas_fixas(X_QTDE_HEADER, Y_QTDE_HEADER, tipo_clique='double', pausar=1.0)
-    
-    
-    #print("✅ Item encontrado na grade, prosseguindo...")
-
     # ─────────────────────────────────────
-    # LÓGICA - COMPARAR SOMA DA GRADE x QUANTIDADE N8N
+    # LÓGICA - COMPARAR QUANTIDADE INDIVIDUAL DA GRADE x QUANTIDADE N8N COM ORDENAÇÃO
     # ─────────────────────────────────────
-    #print("\n📊 Comparando quantidade do N8N com soma da coluna 'Qtde.' na grade...")
-
-    #resultado_qtde = auto_ocr.verificar_soma_quantidades_grade(
-    #    quantidade_n8n=quantity,
-    #    tolerancia=0.01,      # pode ajustar se quiser permitir variação maior
-    #    confianca_minima=10   # mesmo valor que funcionou no teste
-    #) DESATIVADO PARA TESTE DA ORDENACAO
-    resultado_qtde = auto_ocr.ordenar_e_verificar_quantidade(
+    print("\n📊 Comparando quantidade individual da grade com quantidade N8N...")
+          
+    resultado_qtde = auto_ocr.ordenar_e_verificar_saldo_maior_ou_igual_por_linhas(
         x_qtde_header=X_QTDE_HEADER,
         y_qtde_header=Y_QTDE_HEADER,
         quantidade_n8n=quantity,
+        regiao_qtde=REGIAO_QTDE,
         tolerancia=0.01,
-        confianca_minima_ocr=10,
-        max_tentativas_ordenacao=2 # Tenta ordenar uma vez (menor->maior), e se não bater, reordena (maior->menor)
+        confianca_minima_ocr=5,
+        max_tentativas_ordenacao=2,
+        preprocessing_config_qtde=preprocessing_config_qtde,
+        altura_linha=18,
+        margem_superior=0,
+        margem_inferior=0
     )
-    # -----------------------------
 
-    #if resultado_qtde['bate']:
-    #    print(f"✅ Quantidade CONFERE para {part_number}.")
-        # aqui segue o fluxo normal – ex: clicar em algum botão para confirmar
-    if resultado_qtde['bate'] or resultado_qtde['soma_grade'] >= quantity:
-        print(f"✅ Quantidade OK para {part_number}.")
-
+    # --- NOVA LÓGICA DE VERIFICAÇÃO ---
+    if resultado_qtde['bate']: # Se encontrou pelo menos uma quantidade <= N8N
+        print(f"✅ Quantidade OK para {part_number}. Remessa encontrada: {resultado_qtde['quantidade_encontrada_grade']}.")
     else:
-        print(f"❌ Quantidade NÃO CONFERE para {part_number}!")
-        print(f"   Grade: {resultado_qtde['soma_grade']} | N8N: {resultado_qtde['quantidade_n8n']}")
-        print(f"   Lista na grade: {resultado_qtde['lista_grade']}")
-        # Lista de itens divergentes - quantia não bateu - status será diferente na geração da planilha no N8N
-        itens_divergentes_qtde.append({
+        print(f"❌ Nenhuma remessa na grade é igual ou menor que a quantidade N8N para {part_number}!")
+        print(f"   N8N: {resultado_qtde['quantidade_n8n']}")
+        print(f"   Quantidades na grade: {resultado_qtde['lista_grade']}")
+        itens_sem_saldo.append({
             'part_number'      : part_number,
             'num_ordem'        : num_ordem,
             'quantity'   : quantity,
             'net_price'  : net_price,
             'total_value': total_value,
-            'qtde_soma_grade'  : resultado_qtde['soma_grade'],
+            'qtde_soma_grade'  : resultado_qtde['quantidade_encontrada_grade'], # Usar a quantidade que bateu ou 0.0
             'lista_qtde_grade' : resultado_qtde['lista_grade'],
-            'diferenca'        : resultado_qtde['diferenca']
+            #'diferenca'        : resultado_qtde['diferenca']
         })
 
-    # ─────────────────────────────────────
-    # LÓGICA - COMPARAR SOMA DA GRADE x QUANTIDADE N8N
-    # ─────────────────────────────────────
-    
-    # Se não entrou no if acima, significa que NÃO houve popup
-    # (ou o OCR não detectou). Mais tarde vamos colocar aqui a leitura
-    # da quantidade na grade para comparar com o N8N.
-       
     print(f"✅ Item {part_number} processado!")
     
 
 print("\n" + "="*60)
 print(f"✅ Encontrados:     {len(itens_encontrados)}")
-print(f"✅ Encontrados:     {len(itens_divergentes_qtde)} com divergência de quantidade")
+print(f"✅ Encontrados:     {len(itens_sem_saldo)} com divergência de quantidade")
 print(f"❌ Não encontrados: {len(itens_nao_encontrados)}")
 print("="*60)
 
 # ── Envia relatório final consolidado ao N8N ──────────────
-if itens_nao_encontrados or itens_divergentes_qtde or itens_encontrados:
+if itens_nao_encontrados or itens_sem_saldo or itens_encontrados:
     gerenciador.enviar_relatorio_final(
         itens_nao_encontrados=itens_nao_encontrados,
-        itens_divergentes_qtde=itens_divergentes_qtde,
+        itens_sem_saldo=itens_sem_saldo,
         itens_encontrados=itens_encontrados
     )
 

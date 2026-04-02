@@ -23,7 +23,7 @@ PREPROCESSING_CONFIG_QTDE = {
     'amplify_factor': 3,
     'grayscale': True,
     'contrast': 2.0,
-    'threshold': 150, # Ajuste este valor (0-255) se os números não estiverem claros
+    'threshold': 255, # Ajuste este valor (0-255) se os números não estiverem claros
     'whitelist': '0123456789,.',
     'psm': 6
 }

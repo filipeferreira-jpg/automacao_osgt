@@ -56,26 +56,27 @@ print("\n⏳ Aguardando o Citrix Workspace iniciar e a janela 'Módulos' aparece
 time.sleep(15) # Ajuste este tempo conforme a velocidade de inicialização do Citrix na sua máquina
 
 # ─────────────────────────────────────────────────────────
-# 3. Executa automation.py
+# 3. Executa automation_consulta.py
 # ─────────────────────────────────────────────────────────
-print("\n📍 EXECUTANDO: automation.py")
+print("\n📍 EXECUTANDO: automation_consulta.py")
 print("-"*60)
 try:
     resultado_automation = subprocess.run(
-        [sys.executable, "automation.py"],
+        [sys.executable, "automation_consulta.py"],
         capture_output=False,
         text=True,
         check=True
     )
-    print("✅ automation.py concluído com sucesso!")
+    print("✅ automation_consulta.py concluído com sucesso!")
 except subprocess.CalledProcessError as e:
-    print(f"❌ automation.py falhou com erro: {e}")
+    print(f"❌ automation_consulta.py falhou com erro: {e}")
     print(f"   Stderr: {e.stderr}")
     sys.exit(1)
 except Exception as e:
-    print(f"❌ Erro inesperado ao executar automation.py: {e}")
+    print(f"❌ Erro inesperado ao executar automation_consulta.py: {e}")
     sys.exit(1)
 
 print("\n" + "="*60)
 print("🎉 FLUXO DE AUTOMAÇÃO PRINCIPAL CONCLUÍDO COM SUCESSO!")
 print("="*60)
+
