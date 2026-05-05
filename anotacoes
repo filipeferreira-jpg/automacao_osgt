@@ -1,0 +1,34 @@
+
+-------  PORÇÃO DE CÓDIGOS PARA NOTAS DE TESTES  ---------
+    wait.until(lambda d: len(d.window_handles) > len(handles_antes))
+nova_aba = (set(driver.window_handles) - set(handles_antes)).pop()
+driver.switch_to.window(nova_aba)
+
+try:
+    wait = WebDriverWait(driver, 3)
+    app_element = driver.find_element(By.XPATH, '//a[@class="storeapp-details-link"]')
+
+    # Para clicar no app
+    #app_link = app_element.find_element(By.CLASS_NAME, "storeapp-details-link")
+    app_element.click()
+
+except TimeoutException:
+    print("Elemento com XPATH não encontrado")
+except Exception as e:
+    print(f"Erro ao selecionar elemento: {e}")
+
+    
+    """
+    """
+wait.until(lambda d: len(d.window_handles) > len(handles_antes))
+nova_aba = (set(driver.window_handles) - set(handles_antes)).pop()
+driver.switch_to.window(nova_aba)
+
+btn_apps = wait.until(EC.presence_of_element_located((By.ID, "allAppsBtn")))
+btn_apps.click()
+    """
+
+------------------------------------------------------------------------------------------
+`quantity` decimal(10,3) DEFAULT NULL,\n  
+`net_price` decimal(10,2) DEFAULT NULL,\n  
+`total_value` decimal(15,2) DEFAULT NULL,\n
