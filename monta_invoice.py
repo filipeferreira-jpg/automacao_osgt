@@ -78,7 +78,7 @@ PREP_SAVE = {
 # =========================
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
-if not gerenciador.carregar_do_n8n(fatura_id=42): #PARA TESTES
+if not gerenciador.carregar_do_n8n(fatura_id=47): #PARA TESTES
     raise Exception("❌ Falha ao carregar itens do N8N")
 
 # limitador de teste
@@ -375,6 +375,7 @@ x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(59, 245) # botão grava, 
 pyautogui.click(x_abs, y_abs)
 # Tenta clicar usando OCR
 time.sleep(3)
+sys.exit(0)
 sucesso = auto_ocr.clicar_menu_barra('Windows', pausar=2)
 
 if sucesso:

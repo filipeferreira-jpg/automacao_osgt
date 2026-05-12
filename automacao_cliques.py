@@ -1,6 +1,11 @@
 """
 Módulo de automação usando OCR (Tesseract)
 Encontra textos na tela e clica neles
+
+BACKUP DO CÓDIGO DE AUTOMAÇÃO, ANTES DAS ATUALIZAÇÕES
+ESTE CÓDIGO AINDA FUNCIONA, MAS FOI SUBSTITUÍDO POR UMA VERSÃO MAIS ROBUSTA  QUE INCLUI MELHORIAS COMO:
+SOMA VALORES DA GRADE DO SISTEMA, PARA CONFERIR COM A QUANTIDADE QUE VEIO DA FATURA.
+FAZ A SOMA E SELECIONA O MAIOR VALOR, PARA A MONTAGEM / CONFERENCIA
 """
 
 import cv2
@@ -1941,29 +1946,6 @@ class AutomacaoOCR:
         self.limpar_cache_ocr()
         return True
 
-    def _somar_quantidades_grade(self, lista_grade):
-        """Soma segura dos valores positivos da grade."""
-        return sum(self._to_float(q, default=0.0) for q in (lista_grade or []) if self._to_float(q, default=0.0) > 0)
-
-    def _escolher_linha_unica_para_subida(self, lista_grade):
-        """
-        Escolhe UMA única linha para subir quando validação ocorrer por soma.
-        Regra: maior quantidade da grade (desempate pelo primeiro índice).
-        """
-        melhor_idx = None
-        melhor_q = -1.0
-
-        for i, q in enumerate(lista_grade or []):
-            qf = self._to_float(q, default=0.0)
-            if qf > melhor_q:
-                melhor_q = qf
-                melhor_idx = i
-
-        if melhor_idx is None or melhor_q <= 0:
-            return None
-
-        return {"index": melhor_idx, "qtde": melhor_q, "tipo": "maior_disponivel"}
-    
     def selecionar_linha_com_saldo_por_qtde(self,
                                         x_qtde_header, y_qtde_header,
                                         quantidade_n8n,
@@ -1976,13 +1958,12 @@ class AutomacaoOCR:
                                         margem_superior=0,
                                         margem_inferior=0,
                                         offset_click_x=20,
-                                        offset_click_y=0,
-                                        considerar_soma_quando_sem_linha=True):
+                                        offset_click_y=0):
         """
         ROBÔ 2:
-        1) tenta linha individual >= N8N
-        2) se não achar, valida por soma da grade
-        3) se soma atender, sobe APENAS UMA linha (maior disponível)
+        - tenta ordenar (double) + ler + escolher linha >= N8N
+        - repete a ordenação se ainda não encontrar linha válida
+        - ao selecionar, clica a seta (670,430)
         """
         q_n8n = self._to_float(quantidade_n8n)
         ultima_lista = []
@@ -1990,11 +1971,11 @@ class AutomacaoOCR:
         for tentativa in range(1, max_tentativas_ordenacao + 1):
             print(f"\n🔃 [ROBÔ 2] Tentativa {tentativa}/{max_tentativas_ordenacao} — ordenar (double) + ler + escolher...")
 
-            # 1) Ordena
+            # 1) Ordena (no seu sistema TEM que ser double)
             self.clicar_coordenadas_fixas(x_qtde_header, y_qtde_header, tipo_clique='double', pausar=0.7)
             time.sleep(1)
 
-            # 2) Lê grade
+            # 2) Lê a lista
             lista_grade = self._ler_e_processar_quantidades_grade_por_linhas(
                 regiao_qtde=regiao_qtde,
                 confianca_minima=confianca_minima_ocr,
@@ -2011,33 +1992,18 @@ class AutomacaoOCR:
                 print("   ⚠️ OCR vazio; tentando ordenar/ler de novo...")
                 continue
 
-            # 3) Regra principal: linha individual >= N8N
+            # 3) Escolhe linha >= N8N
             escolha = self.escolher_linha_por_qtde_maior_ou_igual(
                 lista_grade=lista_grade,
                 quantidade_n8n=q_n8n,
                 tolerancia=tolerancia
             )
 
-            modo_validacao = "linha_individual"
-            motivo = None
-
-            # 4) Fallback por soma (sem subir 2 linhas)
-            if not escolha and considerar_soma_quando_sem_linha:
-                soma_total = self._somar_quantidades_grade(lista_grade)
-                print(f"   ∑ Soma da grade: {soma_total} | N8N: {q_n8n}")
-
-                if soma_total >= (q_n8n - tolerancia):
-                    escolha = self._escolher_linha_unica_para_subida(lista_grade)
-                    modo_validacao = "soma_grade_selecao_unica"
-                    motivo = "Sem linha individual >= N8N; soma atende. Subida única aplicada."
-                    if escolha:
-                        escolha["tipo"] = "soma_grade_maior_disponivel"
-
             if not escolha:
-                print("   ⚠️ Nenhuma linha válida e soma insuficiente; tentando reordenar...")
+                print("   ⚠️ Nenhuma linha >= N8N nesta leitura; tentando reordenar...")
                 continue
 
-            # 5) Clica na linha escolhida (sempre uma só)
+            # 4) Clica na linha
             clicou = self.clicar_linha_na_coluna(
                 regiao_coluna=regiao_qtde,
                 indice_linha=escolha["index"],
@@ -2053,16 +2019,14 @@ class AutomacaoOCR:
 
             time.sleep(1)
 
-            # 6) Seta para subir PN
+            # 5) Clica a seta para subir PN para a grade superior
             self.clicar_coordenadas_fixas(670, 430, tipo_clique='single', pausar=0.8)
 
             return {
                 "ok": True,
-                "motivo": motivo,
-                "modo_validacao": modo_validacao,
+                "motivo": None,
                 "quantidade_n8n": q_n8n,
                 "lista_grade": lista_grade,
-                "soma_grade": self._somar_quantidades_grade(lista_grade),
                 "linha_index": escolha["index"],
                 "qtde_lida": escolha["qtde"],
                 "tipo_escolha": escolha["tipo"],
@@ -2071,11 +2035,9 @@ class AutomacaoOCR:
 
         return {
             "ok": False,
-            "motivo": f"Falhou após {max_tentativas_ordenacao} tentativas (ordenar/ler/selecionar/somar)",
-            "modo_validacao": "falha",
+            "motivo": f"Falhou após {max_tentativas_ordenacao} tentativas (ordenar/ler/selecionar)",
             "quantidade_n8n": q_n8n,
-            "lista_grade": ultima_lista,
-            "soma_grade": self._somar_quantidades_grade(ultima_lista)
+            "lista_grade": ultima_lista
         }
         
     def clicar_coordenadas_multiclick(self, x_rel, y_rel, clicks=4, intervalo=0.08, pausar=0.3):
