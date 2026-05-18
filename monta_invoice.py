@@ -78,11 +78,11 @@ PREP_SAVE = {
 # =========================
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
-if not gerenciador.carregar_do_n8n(fatura_id=47): #PARA TESTES
+if not gerenciador.carregar_do_n8n(fatura_id=59): #PARA TESTES
     raise Exception("❌ Falha ao carregar itens do N8N")
 
 # limitador de teste
-gerenciador.itens = gerenciador.itens#[:5]  # Processa apenas os primeiros 5 itens
+gerenciador.itens = gerenciador.itens#[:15]  # Processa apenas os primeiros 15 itens
 
 print(f"✅ {gerenciador.total_itens()} itens prontos para montar rascunho")
 print("=" * 60)
@@ -111,6 +111,9 @@ auto_ocr.arrastar_coluna_quantidade(780, 525, 797, 525, duracao_arraste=0.3, pau
 
 #auto_ocr.clicar_coordenadas_multiclick(1079, 392, clicks=4, intervalo=0.5, pausar=0.5) #coordenadas 1366x768
 auto_ocr.clicar_coordenadas_multiclick(908, 392, clicks=4, intervalo=0.5, pausar=0.5) #coordenadas 1024x768
+# arrastar coluna agrupamento, para visualizar as colunas
+# Qtde e Valor Unitario
+auto_ocr.arrastar_coluna_quantidade(762, 300, 620, 300, duracao_arraste=0.3, pausar=0.5) #coordenadas 1024x768
 
 # =========================
 # LOOP ITENS
@@ -198,7 +201,8 @@ while gerenciador.tem_proximo():
     #print(f"✅ PN {part_number} pronto para próxima etapa da montagem.")
     time.sleep(0.8)  # dá tempo da grade superior atualizar
     res_qtde = auto_ocr.editar_qtde_ultimo_item_com_end(quantidade_n8n=quantity)
-
+    auto_ocr.editar_valor_unitario_na_linha(valor_unitario_n8n=net_price, y_rel_click=res_qtde["y_rel_detectado"])
+    
     if not res_qtde["ok"]:
         print("❌ Falha ao editar Qtde:", res_qtde["motivo"])
 

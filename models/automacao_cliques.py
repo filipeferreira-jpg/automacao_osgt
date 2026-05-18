@@ -2198,7 +2198,7 @@ class AutomacaoOCR:
         # Clique numa coluna “segura” (não-Qtde) na linha destacada, se precisar.
         # Se você realmente precisa clicar em Qtde, mantenha x_rel_qtde_click.
         #x_rel_qtde_click=971, # 1366x768
-        x_rel_qtde_click=795, # 1024x768
+        x_rel_qtde_click=660, # 1024x768
 
         pausar_pos_end=0.3,
         pausar_entre_teclas=0.1,
@@ -2265,6 +2265,54 @@ class AutomacaoOCR:
         self.limpar_cache_ocr()
         time.sleep(0.2)
         return {"ok": True, "motivo": None, "qtde_colada": quantidade_txt, "y_rel_detectado": y_rel_click, "segmento_local": det["segmento"], "score_escuro": det["score_escuro"]}
+
+    def editar_valor_unitario_na_linha(
+        self,
+        valor_unitario_n8n,
+        y_rel_click,
+        x_rel_vunit_click=832,   # 1024x768 — coluna Valor Unitário
+        pausar_entre_teclas=0.1
+    ):
+        """
+        Cola o Valor Unitário vindo da fatura na linha JA SELECIONADA da grade.
+
+        Deve ser chamado LOGO APOS editar_qtde_ultimo_item_com_end, passando
+        o y_rel_click retornado por ela:
+
+            res_qtde = self.editar_qtde_ultimo_item_com_end(quantidade_n8n=qtde)
+            if res_qtde["ok"]:
+                self.editar_valor_unitario_na_linha(
+                    valor_unitario_n8n=vunit,
+                    y_rel_click=res_qtde["y_rel_detectado"]
+                )
+
+        Nao pressiona END nem detecta linha novamente.
+        Apenas clica em X=832 no mesmo Y, seleciona, apaga e cola o valor.
+        """
+        if not self.captura.janela_atual:
+            return {"ok": False, "motivo": "Nenhuma janela selecionada"}
+
+        # Clique direto na coluna Valor Unitario — mesma linha ja selecionada
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel_vunit_click, y_rel_click)
+        pyautogui.click(x_abs, y_abs)
+        time.sleep(0.10)
+
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(pausar_entre_teclas)
+        pyautogui.press("delete")
+        time.sleep(pausar_entre_teclas)
+
+        # Formata como decimal pt-BR (ex.: '3,0000000000') — sem arredondamento inteiro
+        valor_txt = self._formatar_quantidade_para_erp(valor_unitario_n8n)
+
+        pyperclip.copy(valor_txt)
+        time.sleep(0.05)
+        pyautogui.hotkey("ctrl", "v")
+        time.sleep(0.5)
+
+        self.limpar_cache_ocr()
+        time.sleep(0.2)
+        return {"ok": True, "motivo": None, "vunit_colado": valor_txt, "y_rel_usado": y_rel_click}
     
     @staticmethod
     def data_iso_para_ddmmaaaa(data_iso: str) -> str:

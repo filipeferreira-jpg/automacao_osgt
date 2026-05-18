@@ -58,7 +58,8 @@ campo_user = wait.until(EC.visibility_of_element_located((By.ID, "username")))
 # preencher o campo de usuário
 campo_user.clear()
 #campo_user.send_keys("PJ4TLJ") # LOGIN NATHALIA
-campo_user.send_keys("FJMDNL") # LOGIN KARINA
+#campo_user.send_keys("FJMDNL") # LOGIN KARINA
+campo_user.send_keys("BZ5GRZ") # LOGIN DIEGO
 #campo_user.send_keys("PZJQ9S") # user PHINIA TESTE
 #campo_user.send_keys("HJ2J7R") # user PRODUCAO PHINIA
 
@@ -66,11 +67,14 @@ campo_user.send_keys("FJMDNL") # LOGIN KARINA
 campo_pw = wait.until(EC.visibility_of_element_located((By.ID, "password")))
 # preencher o campo de senha 
 campo_pw.clear()
-campo_pw.send_keys("Josafa2026abc@") # LOGIN KARINA
+#campo_pw.send_keys("Josafa2026abc@") # LOGIN KARINA
+campo_pw.send_keys("Agnes2026c!!") # LOGIN DIEGO
 #campo_pw.send_keys("Nathi2027!@#") # login nathalia
 #campo_pw.send_keys("renata01") # user PHINIA TESTE
 #campo_pw.send_keys("Start@DT1oj13") # user PRODUCAO PHINIA
 time.sleep(3)  # aguarda 3 segundos para a próxima etapa
+
+
 
 # clicar no botão de login
 # xpath do botão de login - //*[@id="submit-btn"]
