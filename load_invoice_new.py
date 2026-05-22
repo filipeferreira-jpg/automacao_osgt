@@ -29,7 +29,7 @@ PREPROCESSING_QTDE = {
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
 # Carrega os itens
-if not gerenciador.carregar_do_n8n(fatura_id=56):
+if not gerenciador.carregar_do_n8n(fatura_id=63):
     raise Exception("❌ Falha ao carregar itens do N8N")
 # ─── LIMITADOR DE TESTE ───────────────────────────────────
 gerenciador.itens = gerenciador.itens #[:5]# ← Pega apenas os 5 primeiross

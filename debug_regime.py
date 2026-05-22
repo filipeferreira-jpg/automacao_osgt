@@ -14,7 +14,7 @@ pyautogui.click(x, y)
 # Use esse loop pra testar diferentes regiões até achar a perfeita
 regioes_teste = [
     # x_rel, y_rel, largura, altura, nome_arquivo
-    (730, 30, 300, 250, 'grid_saida.png'),
+    (290, 290, 415, 130, 'grid_moeda.png'),
     #(520, 160, 180, 120, 'grid_popup.png'),
     #(940, 309, 71, 85, 'grid_montagem.png'),
     

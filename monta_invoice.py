@@ -82,7 +82,7 @@ if not gerenciador.carregar_do_n8n(fatura_id=59): #PARA TESTES
     raise Exception("❌ Falha ao carregar itens do N8N")
 
 # limitador de teste
-gerenciador.itens = gerenciador.itens#[:15]  # Processa apenas os primeiros 15 itens
+gerenciador.itens = gerenciador.itens#[:30]  # Processa apenas os primeiros 50 itens
 
 print(f"✅ {gerenciador.total_itens()} itens prontos para montar rascunho")
 print("=" * 60)
@@ -135,6 +135,7 @@ while gerenciador.tem_proximo():
     print("─" * 60)
 
     # Preenche PN e busca
+    time.sleep(0.3)
     auto_ocr.preencher_campo_por_clipboard(X_PARTNUMBER, Y_PARTNUMBER, part_number, pausar=1)
     time.sleep(0.6)
     auto_ocr.clicar_em_texto('Busca', pausar=2, confianca_minima=25)
@@ -276,9 +277,10 @@ else:
 time.sleep(1.5)
 pyautogui.hotkey("s")
 time.sleep(0.8)
-pyautogui.hotkey("s")
-time.sleep(2)
-
+#pyautogui.hotkey("s")
+#time.sleep(2)
+time.sleep(1.5)  # aguarda o popup aparecer, se for o caso
+auto_ocr.fechar_popup_atencao_moeda(pausar=2.0)
 # ETAPA PARA PREENCHIMENTO DE CAMPOS ADICIONAIS - NUMERO FATURA E DATA FATURA
 # Localiza o texto 'Invoice' para garantir que estamos na região certa antes de preencher os campos
 
@@ -382,6 +384,7 @@ time.sleep(3)
 sys.exit(0)
 sucesso = auto_ocr.clicar_menu_barra('Windows', pausar=2)
 
+sys.exit(0)
 if sucesso:
     print("\n✓ Clique em 'Windows' executado com sucesso!")
     time.sleep(2)

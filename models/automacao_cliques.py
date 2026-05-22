@@ -647,10 +647,11 @@ class AutomacaoOCR:
         # 1. Clica no campo
         print(f"🖱️  Clicando no campo...")
         pyautogui.click(x_abs, y_abs)  # clica campo
+        time.sleep(0.4)
         pyautogui.hotkey('ctrl', 'a') # Seleciona tudo
-        time.sleep(0.3) # pequena pausa para garantir que o campo processou o Ctrl+A
+        time.sleep(0.4) # pequena pausa para garantir que o campo processou o Ctrl+A
         pyautogui.press('delete')  # Apaga
-        time.sleep(0.3)
+        time.sleep(0.4)
 
         # 2. Copia valor para clipboard
         print(f"📋 Copiando '{valor}' para clipboard...")
@@ -665,95 +666,6 @@ class AutomacaoOCR:
         self.limpar_cache_ocr()
         print(f"✓ Campo preenchido via clipboard!")
         return True
-      
-    def preencher_campo_clipboard(self, x_rel, y_rel, valor, pausar=0.5):
-        valor_str = str(valor).strip()
-        print(f"\n📋 Preenchendo campo via clipboard com '{valor_str}'...")
-
-        if not self.captura.janela_atual:
-            print("❌ Nenhuma janela principal selecionada")
-            return False
-
-        x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel, y_rel)
-
-        # 1. Reseta clipboard
-        pyperclip.copy('')
-        time.sleep(0.2)
-
-        # 2. Foca no campo
-        pyautogui.click(x_abs, y_abs)
-        time.sleep(0.4)
-
-        # 3. Limpa o campo
-        pyautogui.hotkey('ctrl', 'a')
-        time.sleep(0.2)
-        pyautogui.press('delete')
-        time.sleep(0.2)
-
-        # 4. Clica de novo para garantir foco
-        pyautogui.click(x_abs, y_abs)
-        time.sleep(0.3)
-
-        # 5. Copia valor para clipboard
-        pyperclip.copy(valor_str)
-        time.sleep(0.4)
-
-        # 6. ✅ Cola via win32com no lugar do pyautogui
-        shell = win32com.client.Dispatch("WScript.Shell")
-        shell.SendKeys("^v")
-        time.sleep(pausar)
-
-        self.limpar_cache_ocr()
-        print(f"✓ Campo preenchido com '{valor_str}'!")
-        return True
-
-    def digitar_texto_devagar(self, texto, delay_entre_chars=0.15):
-        """
-        Digita texto caractere por caractere com delay
-        Método genérico para usar em qualquer campo
-
-        Args:
-            texto: Texto a digitar
-            delay_entre_chars: Delay em segundos entre cada caractere
-        """
-        print(f"⌨️  Digitando '{texto}' (devagar, delay={delay_entre_chars}s)...")
-        texto_str = str(texto)
-
-        for i, char in enumerate(texto_str):
-            # Trata caracteres especiais
-            if char == '-':
-                pyautogui.press('minus')
-            elif char == '_':
-                pyautogui.press('underscore')
-            elif char == '/':
-                pyautogui.press('slash')
-            elif char == '.':
-                pyautogui.press('period')
-            elif char == ',':
-                pyautogui.press('comma')
-            elif char == ' ':
-                pyautogui.press('space')
-            elif char.isdigit():
-                pyautogui.press(char)
-            elif char.isalpha():
-                if char.isupper():
-                    pyautogui.hotkey('shift', char.lower())
-                else:
-                    pyautogui.press(char)
-            else:
-                # Para outros caracteres, tenta escrever diretamente
-                try:
-                    pyautogui.write(char, interval=0)
-                except:
-                    print(f"  ⚠️  Caractere '{char}' ignorado")
-
-            time.sleep(delay_entre_chars)
-
-            # Mostra progresso a cada 5 caracteres
-            if (i + 1) % 5 == 0 or (i + 1) == len(texto_str):
-                print(f"  ✓ Progresso: {i+1}/{len(texto_str)} caracteres")
-
-        print(f"✓ Texto '{texto}' digitado completamente!")
     
     def preencher_campo_por_coordenadas(self, x_rel, y_rel, valor, delay=0.15, 
                                     limpar_antes=True, pausar=0.5):
@@ -996,6 +908,95 @@ class AutomacaoOCR:
                 print(f"  💾 Salvo: {nome} | Região: ({x}, {y}, {w}, {h})")
 
         print("✓ Abra os arquivos de debug para confirmar as coordenadas do popup")
+
+    def fechar_popup_atencao_moeda(self, pausar=1.0):
+        """
+        Detecta e fecha o popup 'Atenção! Moeda da Fatura é diferente...'
+        clicando em OK. Tenta via OCR, fallback em coordenadas fixas.
+
+        Returns:
+            True  -> popup detectado e fechado
+            False -> popup não estava visível
+        """
+        print("\n🔍 Verificando popup 'Atenção! Moeda...'...")
+
+        if not self.captura.janela_atual:
+            print("❌ Nenhuma janela principal selecionada")
+            return False
+
+        # Região do popup — estrutura similar ao popup 'nenhum item'
+        # ajuste fino se necessário conforme resolução
+        regiao_popup = (380, 290, 300, 160)  # 1024x768
+
+        self.limpar_cache_ocr()
+        resultado_ocr = self.processar_ocr(regiao=regiao_popup, forcar_nova=True)
+
+        if not resultado_ocr:
+            return False
+
+        data = resultado_ocr['data']
+
+        # Textos que identificam este popup específico
+        textos_alvo = [
+            'moeda',
+            'fatura',
+            'diferente',
+            'atenção',
+            'atencao',
+            'ordem'
+        ]
+
+        textos_detectados = []
+        for i in range(len(data['text'])):
+            texto = data['text'][i].strip()
+            if not texto:
+                continue
+            try:
+                conf = int(data['conf'][i])
+            except ValueError:
+                conf = 0
+            if conf < 10:
+                continue
+            textos_detectados.append(texto.lower())
+            print(f"  📝 OCR detectou: '{texto}' (conf: {conf}%)")
+
+        texto_completo = ' '.join(textos_detectados)
+        popup_detectado = any(alvo in texto_completo for alvo in textos_alvo)
+
+        if not popup_detectado:
+            print("ℹ️  Popup 'Atenção Moeda' não detectado")
+            return False
+
+        print("✓ Popup 'Atenção! Moeda...' detectado! Clicando em OK...")
+
+        # Região do botão OK dentro do popup
+        regiao_ok = (440, 380, 180, 55)  # 1024x768
+
+        self.limpar_cache_ocr()
+        sucesso = self.clicar_em_texto(
+            texto_busca='OK',
+            tipo_clique='single',
+            pausar=pausar,
+            regiao=regiao_ok,
+            confianca_minima=10,
+            similaridade_minima=0.5,
+            tentativas=2
+        )
+
+        if sucesso:
+            print("✓ Popup 'Atenção Moeda' fechado via OCR!")
+            self.limpar_cache_ocr()
+            return True
+
+        # Fallback coordenadas fixas
+        print("⚠️  OCR não encontrou 'OK', usando coordenadas fixas...")
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(509, 397)  # 1024x768
+        pyautogui.click(x_abs, y_abs)
+        time.sleep(pausar)
+        self.limpar_cache_ocr()
+        print("✓ Popup 'Atenção Moeda' fechado via coordenadas fixas!")
+        return True
+
 
     def ler_quantidades_grade(self, regiao_qtde, confianca_minima=8, preprocessing_config=None):
         """
@@ -2201,7 +2202,7 @@ class AutomacaoOCR:
         x_rel_qtde_click=660, # 1024x768
 
         pausar_pos_end=0.3,
-        pausar_entre_teclas=0.1,
+        pausar_entre_teclas=0.4,
         salvar_debug_detecao=False,
         tentativas_detecao=2
     ):
@@ -2214,7 +2215,7 @@ class AutomacaoOCR:
 
         # Evita estar preso em modo edição
         pyautogui.press("esc")
-        time.sleep(0.05)
+        time.sleep(0.4)
 
         # END + detectar (com retentativa)
         det = None
@@ -2241,7 +2242,7 @@ class AutomacaoOCR:
         # Clique na Qtde (se isso abrir edição automaticamente, ok)
         x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel_qtde_click, y_rel_click)
         pyautogui.click(x_abs, y_abs)
-        time.sleep(0.10)
+        time.sleep(0.7)
 
         pyautogui.hotkey("ctrl", "a")
         time.sleep(pausar_entre_teclas)

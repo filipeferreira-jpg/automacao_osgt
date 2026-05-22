@@ -1,100 +1,118 @@
-import pyautogui
-import pytesseract
-import pygetwindow as gw
+# ============================================================
+# teste_popup_atencao_moeda.py
+# Testa detecção e fechamento do popup "Atenção! Moeda..."
+# sem precisar rodar o robô completo.
+#
+# Como usar:
+#   1. Deixe o ONESOURCE aberto na janela Import
+#   2. Acione manualmente o popup (ex: clicando em Busca com
+#      um item que dispara o aviso de moeda)
+#   3. Execute este script — ele tentará detectar e fechar
+# ============================================================
 import time
-from PIL import Image
+import pyautogui
+from models.automacao_cliques import AutomacaoOCR
 
-# Configuração do Tesseract
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# ─── CONFIG ───────────────────────────────────────────────
+JANELA_ALVO = 'Import'
+PAUSAR_ANTES_DE_TESTAR = 5  # segundos para você acionar o popup manualmente
+# ──────────────────────────────────────────────────────────
 
-print("="*60)
-print("🔍 DEBUG TESSERACT")
-print("="*60)
+print("=" * 60)
+print("🧪 TESTE — Popup 'Atenção! Moeda...'")
+print("=" * 60)
 
-# 1. Encontra janela
-print("\n📌 Procurando janela...")
-janelas = gw.getWindowsWithTitle('Módulos')
+auto_ocr = AutomacaoOCR(JANELA_ALVO)
 
-if not janelas:
-    print("❌ Janela não encontrada!")
-    exit()
+print(f"\n⏳ Aguardando {PAUSAR_ANTES_DE_TESTAR}s...")
+print("   >> Acione o popup manualmente neste intervalo <<")
+time.sleep(PAUSAR_ANTES_DE_TESTAR)
 
-janela = janelas[0]
-print(f"✓ Janela: {janela.title}")
-print(f"  Posição: left={janela.left}, top={janela.top}")
-print(f"  Tamanho: {janela.width}x{janela.height}")
+# ─── FASE 1: Detecção ─────────────────────────────────────
+print("\n📍 FASE 1: Detectando popup...")
 
-# 2. Foca
-janela.activate()
-time.sleep(1)
+# Região do popup "Atenção! Moeda..." — 1024x768
+# Ajuste se necessário com base no print enviado
+REGIAO_POPUP_MOEDA = (290, 290, 415, 130)
 
-# 3. Captura screenshot DA TELA INTEIRA (para comparar)
-print("\n📸 Capturando tela inteira...")
-screenshot_full = pyautogui.screenshot()
-screenshot_full.save('debug_tela_inteira.png')
-print("✓ Salvo: debug_tela_inteira.png")
+auto_ocr.limpar_cache_ocr()
+resultado_ocr = auto_ocr.processar_ocr(regiao=REGIAO_POPUP_MOEDA, forcar_nova=True)
 
-# 4. Captura apenas a região da janela
-print("\n📸 Capturando região da janela...")
-screenshot_janela = pyautogui.screenshot(region=(
-    janela.left,
-    janela.top,
-    janela.width,
-    janela.height
-))
-screenshot_janela.save('debug_janela.png')
-print("✓ Salvo: debug_janela.png")
+textos_alvo = ['moeda', 'fatura', 'diferente', 'atenção', 'atencao', 'ordem', 'item']
+textos_detectados = []
 
-# 5. Testa OCR na tela inteira
-print("\n🔍 Testando OCR na tela inteira...")
-texto_full = pytesseract.image_to_string(screenshot_full, lang='por')
-print("Texto detectado (tela inteira):")
-print("-" * 60)
-print(texto_full)
-print("-" * 60)
+if resultado_ocr:
+    data = resultado_ocr['data']
+    for i in range(len(data['text'])):
+        texto = data['text'][i].strip()
+        if not texto:
+            continue
+        try:
+            conf = int(data['conf'][i])
+        except ValueError:
+            conf = 0
+        if conf < 10:
+            continue
+        textos_detectados.append(texto.lower())
+        print(f"  📝 OCR detectou: '{texto}' (conf: {conf}%)")
 
-# 6. Testa OCR só na janela
-print("\n🔍 Testando OCR na janela...")
-texto_janela = pytesseract.image_to_string(screenshot_janela, lang='por')
-print("Texto detectado (janela):")
-print("-" * 60)
-print(texto_janela)
-print("-" * 60)
+texto_completo = ' '.join(textos_detectados)
+popup_detectado = any(alvo in texto_completo for alvo in textos_alvo)
 
-# 7. Testa OCR com preprocessamento (melhorar contraste)
-print("\n🔍 Testando OCR com pré-processamento...")
-from PIL import ImageEnhance
+if popup_detectado:
+    print("✅ FASE 1 OK — popup detectado na região!")
+else:
+    print("❌ FASE 1 FALHOU — popup não detectado")
+    print("   Verifique se o popup está visível e ajuste REGIAO_POPUP_MOEDA")
+    print(f"   Texto completo lido: '{texto_completo}'")
 
-# Aumenta contraste
-enhancer = ImageEnhance.Contrast(screenshot_janela)
-img_contraste = enhancer.enhance(2.0)
-img_contraste.save('debug_contraste.png')
+# ─── FASE 2: Fechar via OCR ───────────────────────────────
+print("\n📍 FASE 2: Tentando fechar via OCR (botão OK)...")
 
-texto_contraste = pytesseract.image_to_string(img_contraste, lang='por')
-print("Texto detectado (com contraste):")
-print("-" * 60)
-print(texto_contraste)
-print("-" * 60)
+# Região do botão OK dentro do popup
+REGIAO_OK = (320, 315, 300, 110)
 
-# 8. Testa com image_to_data (mais detalhado)
-print("\n🔍 Testando com image_to_data...")
-data = pytesseract.image_to_data(
-    screenshot_janela,
-    lang='por',
-    output_type=pytesseract.Output.DICT
+auto_ocr.limpar_cache_ocr()
+sucesso_ocr = auto_ocr.clicar_em_texto(
+    texto_busca='OK',
+    tipo_clique='single',
+    pausar=1.0,
+    regiao=REGIAO_OK,
+    confianca_minima=10,
+    similaridade_minima=0.5,
+    tentativas=2
 )
 
-print(f"\nTotal de elementos detectados: {len(data['text'])}")
-print("\nTextos com confiança > 30:")
-for i in range(len(data['text'])):
-    texto = data['text'][i].strip()
-    conf = int(data['conf'][i])
-    if texto and conf > 30:
-        print(f"  ✓ '{texto}' (confiança: {conf}%)")
+if sucesso_ocr:
+    print("✅ FASE 2 OK — OK clicado via OCR!")
+else:
+    # ─── FASE 3: Fallback coordenadas fixas ───────────────
+    print("⚠️  FASE 2 FALHOU — tentando coordenadas fixas...")
 
-print("\n" + "="*60)
-print("✓ Debug concluído!")
-print("\nVerifique as imagens salvas:")
-print("  - debug_tela_inteira.png")
-print("  - debug_janela.png")
-print("  - debug_contraste.png")
+    print("\n📍 FASE 3: Fechando via coordenadas fixas...")
+
+    # Aguarda o usuário acionar o popup de novo se já fechou
+    #print(f"⏳ Aguardando {PAUSAR_ANTES_DE_TESTAR}s para você acionar o popup novamente...")
+    #time.sleep(PAUSAR_ANTES_DE_TESTAR)
+
+    # Coordenadas relativas à janela Import — botão OK do popup Atenção
+    # Ajuste x e y se o clique não bater no botão
+    x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(509, 397)
+    print(f"🖱️  Clicando em ({x_abs}, {y_abs})...")
+    #pyautogui.click(x_abs, y_abs)
+    time.sleep(1.0)
+    print("✅ FASE 3 — clique em coordenadas fixas executado!")
+
+auto_ocr.limpar_cache_ocr()
+
+# ─── RELATÓRIO FINAL ──────────────────────────────────────
+print("\n" + "=" * 60)
+print("📋 RESUMO DO TESTE")
+print("=" * 60)
+print(f"  Popup detectado (OCR):  {'✅ SIM' if popup_detectado else '❌ NÃO'}")
+print(f"  OK via OCR:             {'✅ SIM' if sucesso_ocr else '❌ NÃO — usou fallback'}")
+print("=" * 60)
+print("\n💡 Se as fases falharam, ajuste as variáveis:")
+print("   REGIAO_POPUP_MOEDA — região de detecção do popup")
+print("   REGIAO_OK          — região do botão OK")
+print("   obter_posicao_absoluta(x, y) — fallback de coordenadas fixas")
