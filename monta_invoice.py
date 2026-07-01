@@ -78,7 +78,7 @@ PREP_SAVE = {
 # =========================
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
-if not gerenciador.carregar_do_n8n(fatura_id=59): #PARA TESTES
+if not gerenciador.carregar_do_n8n(fatura_id=95): #PARA TESTES
     raise Exception("❌ Falha ao carregar itens do N8N")
 
 # limitador de teste
@@ -109,12 +109,13 @@ print("\nAjustando largura da coluna 'Quantidade' na grade...")
 #auto_ocr.arrastar_coluna_quantidade(955, 525, 972, 525, duracao_arraste=0.3, pausar=0.5) #coordenadas 1366x768
 auto_ocr.arrastar_coluna_quantidade(780, 525, 797, 525, duracao_arraste=0.3, pausar=0.5) #coordenadas 1024x768
 
+# Cliques para alinhas a grade "Itens da Fatura", para melhor OCR das colunas
 #auto_ocr.clicar_coordenadas_multiclick(1079, 392, clicks=4, intervalo=0.5, pausar=0.5) #coordenadas 1366x768
 auto_ocr.clicar_coordenadas_multiclick(908, 392, clicks=4, intervalo=0.5, pausar=0.5) #coordenadas 1024x768
 # arrastar coluna agrupamento, para visualizar as colunas
-# Qtde e Valor Unitario
-auto_ocr.arrastar_coluna_quantidade(762, 300, 620, 300, duracao_arraste=0.3, pausar=0.5) #coordenadas 1024x768
-
+#auto_ocr.arrastar_coluna_quantidade(762, 300, 640, 300, duracao_arraste=0.3, pausar=0.5) #coordenadas 1024x768
+# remapeado após o bug do dia 30/06, onde a coluna parou de ser arrastada
+auto_ocr.arrastar_coluna_quantidade(654, 300, 594, 300, duracao_arraste=0.3, pausar=0.5) #coordenadas testes
 # =========================
 # LOOP ITENS
 # =========================
@@ -202,10 +203,14 @@ while gerenciador.tem_proximo():
     #print(f"✅ PN {part_number} pronto para próxima etapa da montagem.")
     time.sleep(0.8)  # dá tempo da grade superior atualizar
     res_qtde = auto_ocr.editar_qtde_ultimo_item_com_end(quantidade_n8n=quantity)
-    auto_ocr.editar_valor_unitario_na_linha(valor_unitario_n8n=net_price, y_rel_click=res_qtde["y_rel_detectado"])
-    
+
+    # BUG #3 corrigido: verificar res_qtde["ok"] ANTES de acessar "y_rel_detectado".
+    # Antes, um KeyError derrubava o loop inteiro se a detecção falhasse.
     if not res_qtde["ok"]:
         print("❌ Falha ao editar Qtde:", res_qtde["motivo"])
+        continue  # pula para o próximo item sem travar o robô
+
+    auto_ocr.editar_valor_unitario_na_linha(valor_unitario_n8n=net_price, y_rel_click=res_qtde["y_rel_detectado"])
 
 
 print("\n" + "=" * 60)

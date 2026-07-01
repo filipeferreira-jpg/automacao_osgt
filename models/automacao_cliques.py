@@ -1400,8 +1400,16 @@ class AutomacaoOCR:
 
         print(f"🖱️  Clicando e arrastando de ({x_inicio_abs}, {y_inicio_abs}) para ({x_fim_abs}, {y_fim_abs})...")
 
-        pyautogui.moveTo(x_inicio_abs, y_inicio_abs) # Move o mouse para o ponto inicial
-        pyautogui.dragTo(x_fim_abs, y_fim_abs, duration=duracao_arraste, button='left') # Clica, segura e arrasta
+        # Sequência explícita de drag para funcionar corretamente no Citrix (ambiente virtualizado).
+        # pyautogui.dragTo() após moveTo() sem pausa fazia o mouseDown antes do Citrix
+        # processar a nova posição do mouse, resultando em arraste saindo do ponto errado.
+        pyautogui.moveTo(x_inicio_abs, y_inicio_abs, duration=0.2)  # move com duração para Citrix registrar
+        time.sleep(0.15)                                              # aguarda Citrix processar a posição
+        pyautogui.mouseDown(button='left')                           # pressiona o botão explicitamente
+        time.sleep(0.15)                                              # aguarda o mouseDown ser registrado
+        pyautogui.moveTo(x_fim_abs, y_fim_abs, duration=duracao_arraste)  # arrasta até o destino
+        time.sleep(0.1)                                               # pequena pausa antes de soltar
+        pyautogui.mouseUp(button='left')                             # solta o botão
 
         time.sleep(pausar)
         self.limpar_cache_ocr()
@@ -2189,7 +2197,10 @@ class AutomacaoOCR:
         self,
         quantidade_n8n,
         #x_rel_foco_grade=321, y_rel_foco_grade=320, #1366x768
-        x_rel_foco_grade=240, y_rel_foco_grade=310, #1024x768
+        # BUG #2 corrigido: (240, 310) caía na barra de rolagem horizontal quando o 4º item entrava
+        # na grade e o conteúdo das colunas ficava mais largo (ex.: Valor Total 1.498,6000000).
+        # Agora aponta para o meio da área de conteúdo da grade, longe da barra de rolagem.
+        x_rel_foco_grade=150, y_rel_foco_grade=260, #1024x768
 
         # Recomendo: recorte de uma coluna larga (ex.: Part Number),
         # onde o preto fica “bem sólido”. Ajuste conforme seu mapeamento.
@@ -2272,7 +2283,7 @@ class AutomacaoOCR:
         valor_unitario_n8n,
         y_rel_click,
         x_rel_vunit_click=832,   # 1024x768 — coluna Valor Unitário
-        pausar_entre_teclas=0.1
+        pausar_entre_teclas=0.4
     ):
         """
         Cola o Valor Unitário vindo da fatura na linha JA SELECIONADA da grade.
@@ -2296,7 +2307,7 @@ class AutomacaoOCR:
         # Clique direto na coluna Valor Unitario — mesma linha ja selecionada
         x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel_vunit_click, y_rel_click)
         pyautogui.click(x_abs, y_abs)
-        time.sleep(0.10)
+        time.sleep(0.6)  # Aumentado de 0.10 para 0.6 para dar tempo de abrir/focar a edição do campo
 
         pyautogui.hotkey("ctrl", "a")
         time.sleep(pausar_entre_teclas)
