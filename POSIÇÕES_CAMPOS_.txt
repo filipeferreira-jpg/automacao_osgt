@@ -1,5 +1,0 @@
-	CAMPO NUM. ORDER
-✓ 'Primeiro mapeamento - Botão +' mapeado: (342, 494)
-
-	CAMPO PART NUMBER
-✓ 'Segundo mapeamento - submenu Composição' mapeado: (714, 497)
