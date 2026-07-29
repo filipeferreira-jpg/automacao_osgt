@@ -25,6 +25,13 @@ class AutomacaoOCR:
     """Automação inteligente usando OCR para localizar elementos"""
 
     def __init__(self, titulo_janela=None):
+        """
+        Inicializa a automação OCR. Se o título da janela for fornecido,
+        procura a janela correspondente e coloca em foco.
+
+        Args:
+            titulo_janela (str, optional): Título da janela a ser encontrada e focada.
+        """
         self.captura = CapturaTela()
         self.cache_ocr = {}  # Cache dos textos detectados
 
@@ -305,6 +312,11 @@ class AutomacaoOCR:
         return self.clicar_em_texto(nome_menu, tipo_clique='single', pausar=pausar, regiao=regiao_menu)
         
     def clicar_botao_toolbar(self, nome_botao, pausar=1.0, similaridade_minima=0.65):
+        """
+        Clica em um botão na barra de ferramentas usando OCR.
+        Como o OCR de ícones pode ser impreciso, ignora a confiança mínima
+        e tolera erros de leitura (similaridade).
+        """
         print(f"\n🔘 Clicando no botão: '{nome_botao}'")
         self.limpar_cache_ocr()
 
@@ -1279,6 +1291,11 @@ class AutomacaoOCR:
         margem_superior=0,
         margem_inferior=0
     ):
+        """
+        Ordena a coluna de quantidades e verifica se existe um saldo na grade
+        que seja maior ou igual à quantidade exigida, processando os itens por linhas.
+        Retorna informações sobre o resultado e a quantidade encontrada.
+        """
         q_n8n = self._to_float(quantidade_n8n)
         ultima_lista = []
 
@@ -2217,6 +2234,11 @@ class AutomacaoOCR:
         salvar_debug_detecao=False,
         tentativas_detecao=2
     ):
+        """
+        Vai para o último item da grade pressionando a tecla 'End',
+        detecta a linha destacada (highlight) analisando pixels escuros
+        e substitui a quantidade colando o valor do N8N na célula selecionada.
+        """
         if not self.captura.janela_atual:
             return {"ok": False, "motivo": "Nenhuma janela selecionada"}
 
@@ -2268,7 +2290,7 @@ class AutomacaoOCR:
         pyperclip.copy(quantidade_txt)
         time.sleep(0.05)
         pyautogui.hotkey("ctrl", "v")
-        time.sleep(0.5)
+        time.sleep(1.2)
 
         # ENTER salva
         #pyautogui.press("enter")
@@ -2320,7 +2342,7 @@ class AutomacaoOCR:
         pyperclip.copy(valor_txt)
         time.sleep(0.05)
         pyautogui.hotkey("ctrl", "v")
-        time.sleep(0.5)
+        time.sleep(1.2)
 
         self.limpar_cache_ocr()
         time.sleep(0.2)

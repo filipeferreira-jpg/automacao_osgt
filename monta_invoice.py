@@ -78,7 +78,7 @@ PREP_SAVE = {
 # =========================
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
-if not gerenciador.carregar_do_n8n(fatura_id=95): #PARA TESTES
+if not gerenciador.carregar_do_n8n(fatura_id=126): #PARA TESTES
     raise Exception("❌ Falha ao carregar itens do N8N")
 
 # limitador de teste
@@ -105,17 +105,65 @@ itens_selecionados = []
 num_ordem_fatura = gerenciador.get_num_ordem(gerenciador.item_atual())
 auto_ocr.preencher_campo_por_clipboard(X_ORDEM, Y_ORDEM, num_ordem_fatura, pausar=1)
 
-print("\nAjustando largura da coluna 'Quantidade' na grade...")
-#auto_ocr.arrastar_coluna_quantidade(955, 525, 972, 525, duracao_arraste=0.3, pausar=0.5) #coordenadas 1366x768
-auto_ocr.arrastar_coluna_quantidade(780, 525, 797, 525, duracao_arraste=0.3, pausar=0.5) #coordenadas 1024x768
+# --- AJUSTE DINÂMICO DE ARRASTE E CLIQUE DE ORDENAÇÃO NA TABELA INFERIOR ---
+print("🔍 Detectando cabeçalho 'Qtde.' na tabela inferior...")
+regiao_inferior = (200, 500, 700, 45) # Região aproximada do cabeçalho da Tabela Inferior (Y ≈ 525)
+res_inf = auto_ocr.encontrar_texto("Qtde", confianca_minima=10, regiao=regiao_inferior, similaridade_minima=0.55)
 
-# Cliques para alinhas a grade "Itens da Fatura", para melhor OCR das colunas
-#auto_ocr.clicar_coordenadas_multiclick(1079, 392, clicks=4, intervalo=0.5, pausar=0.5) #coordenadas 1366x768
-auto_ocr.clicar_coordenadas_multiclick(908, 392, clicks=4, intervalo=0.5, pausar=0.5) #coordenadas 1024x768
-# arrastar coluna agrupamento, para visualizar as colunas
-#auto_ocr.arrastar_coluna_quantidade(762, 300, 640, 300, duracao_arraste=0.3, pausar=0.5) #coordenadas 1024x768
-# remapeado após o bug do dia 30/06, onde a coluna parou de ser arrastada
-auto_ocr.arrastar_coluna_quantidade(654, 300, 594, 300, duracao_arraste=0.3, pausar=0.5) #coordenadas testes
+if res_inf:
+    x_header_inf = res_inf['x_rel']
+    y_header_inf = res_inf['y_rel']
+    x_divisoria_inf = x_header_inf + 40 # divisória direita
+    x_destino_inf = x_divisoria_inf + 17 # alarga a coluna em 17px para a direita
+    print(f"↔️ Executando arraste dinâmico inferior: de ({x_divisoria_inf}, {y_header_inf}) para ({x_destino_inf}, {y_header_inf})")
+    auto_ocr.arrastar_coluna_quantidade(x_divisoria_inf, y_header_inf, x_destino_inf, y_header_inf, duracao_arraste=0.3, pausar=0.5)
+    
+    # Atualiza as variáveis globais para a ordenação dinâmica
+    X_QTDE_HEADER = x_header_inf
+    Y_QTDE_HEADER = y_header_inf
+else:
+    print("⚠️ Não foi possível encontrar 'Qtde.' na tabela inferior. Usando fallbacks estáticos...")
+    auto_ocr.arrastar_coluna_quantidade(780, 525, 797, 525, duracao_arraste=0.3, pausar=0.5)
+    X_QTDE_HEADER = 780
+    Y_QTDE_HEADER = 525
+
+# Cliques para alinhar a grade "Itens da Fatura" (7 cliques aprovados)
+auto_ocr.clicar_coordenadas_multiclick(908, 392, clicks=7, intervalo=0.5, pausar=0.5) #coordenadas 1024x768
+
+# --- AJUSTE DINÂMICO DE ARRASTE ---
+print("🔍 Detectando cabeçalho 'Qtde.' para arraste dinâmico...")
+regiao_cabeçalho = (200, 275, 700, 45) # Região do cabeçalho da Tabela Superior (Y ≈ 300)
+res_sup = auto_ocr.encontrar_texto("Qtde", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.55)
+
+if res_sup:
+    x_divisoria = res_sup['x_rel'] - 40
+    y_cabeçalho = res_sup['y_rel']
+    x_destino = x_divisoria - 150 # Arraste dinâmico de 150 pixels aprovado
+    print(f"↔️ Executando arraste dinâmico: de ({x_divisoria}, {y_cabeçalho}) para ({x_destino}, {y_cabeçalho})")
+    auto_ocr.arrastar_coluna_quantidade(x_divisoria, y_cabeçalho, x_destino, y_cabeçalho, duracao_arraste=0.4, pausar=1.0)
+else:
+    print("⚠️ Não foi possível encontrar 'Qtde.' via OCR. Usando fallback estático...")
+    auto_ocr.arrastar_coluna_quantidade(654, 300, 504, 300, duracao_arraste=0.4, pausar=1.0)
+
+# --- CAPTURA DE COORDENADAS DINÂMICAS PARA EDIÇÃO ---
+print("🔍 Capturando novas coordenadas de edição pós-arraste...")
+auto_ocr.limpar_cache_ocr() # Limpa cache para ler o novo estado da tela
+
+res_qtde_atual = auto_ocr.encontrar_texto("Qtde", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.55)
+if res_qtde_atual:
+    x_edicao_qtde = res_qtde_atual['x_rel']
+    print(f"✓ Coluna 'Qtde.' detectada para clique em X = {x_edicao_qtde}")
+else:
+    x_edicao_qtde = 570 # Fallback seguro (660 - 90)
+    print(f"⚠️ 'Qtde.' não localizada pós-arraste. Usando fallback X = {x_edicao_qtde}")
+    
+res_vunit_atual = auto_ocr.encontrar_texto("Valor Unitário", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.80)
+if res_vunit_atual:
+    x_edicao_vunit = res_vunit_atual['x_rel']
+    print(f"✓ Coluna 'Valor Unitário' detectada para clique em X = {x_edicao_vunit}")
+else:
+    x_edicao_vunit = 742 # Fallback seguro (832 - 90)
+    print(f"⚠️ 'Valor Unitário' não localizado pós-arraste. Usando fallback X = {x_edicao_vunit}")
 # =========================
 # LOOP ITENS
 # =========================
@@ -129,6 +177,7 @@ while gerenciador.tem_proximo():
     net_price = gerenciador.get_net_price(item)
     total_value = gerenciador.get_total_value(item)
     num_ordem = gerenciador.get_num_ordem(item)
+    item_id = gerenciador.get_id(item)
 
     print(f"\n{'─' * 60}")
     print(f"🧾 [{progresso['atual']}/{progresso['total']}] PN: {part_number}")
@@ -149,6 +198,7 @@ while gerenciador.tem_proximo():
         auto_ocr.fechar_popup_nenhum_item(pausar=1.0)
 
         itens_nao_encontrados.append({
+            'id': item_id,
             'part_number': part_number,
             'num_ordem': num_ordem,
             'quantity': quantity,
@@ -179,6 +229,7 @@ while gerenciador.tem_proximo():
         print(f"   N8N: {selecao.get('quantidade_n8n')} | Grade: {selecao.get('lista_grade')}")
 
         itens_sem_saldo.append({
+            'id': item_id,
             'part_number': part_number,
             'num_ordem': num_ordem,
             'quantity': quantity,
@@ -192,6 +243,7 @@ while gerenciador.tem_proximo():
     print(f"✅ Linha selecionada: idx={selecao['linha_index']} | qtde={selecao['qtde_lida']} | tipo={selecao['tipo_escolha']}")
 
     itens_selecionados.append({
+        'id': item_id,
         'part_number': part_number,
         'num_ordem': num_ordem,
         'quantity': quantity,
@@ -200,9 +252,26 @@ while gerenciador.tem_proximo():
         'tipo_escolha': selecao['tipo_escolha']
     })
 
+    # --- RECALCULA COORDENADAS DINÂMICAS PARA EDIÇÃO ---
+    # Limpa cache e relê os cabeçalhos para atualizar o X de Qtde e Valor Unitário.
+    # Isso evita quebras caso a barra de rolagem vertical surja no meio do loop e desloque as colunas.
+    auto_ocr.limpar_cache_ocr()
+    res_qtde_atual = auto_ocr.encontrar_texto("Qtde", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.55)
+    if res_qtde_atual:
+        x_edicao_qtde = res_qtde_atual['x_rel']
+        
+    res_vunit_atual = auto_ocr.encontrar_texto("Valor Unitário", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.80)
+    if res_vunit_atual:
+        x_edicao_vunit = res_vunit_atual['x_rel']
+
     #print(f"✅ PN {part_number} pronto para próxima etapa da montagem.")
     time.sleep(0.8)  # dá tempo da grade superior atualizar
-    res_qtde = auto_ocr.editar_qtde_ultimo_item_com_end(quantidade_n8n=quantity)
+    res_qtde = auto_ocr.editar_qtde_ultimo_item_com_end(
+        quantidade_n8n=quantity,
+        x_rel_qtde_click=x_edicao_qtde,
+        y_rel_foco_grade=330,  # Garante foco dentro das linhas de dados da grade superior (Y=330 em vez de Y=260)
+        x_rel_foco_grade=30    # Clica na coluna seletora da extrema esquerda (evita abrir dropdowns e digitação)
+    )
 
     # BUG #3 corrigido: verificar res_qtde["ok"] ANTES de acessar "y_rel_detectado".
     # Antes, um KeyError derrubava o loop inteiro se a detecção falhasse.
@@ -210,7 +279,11 @@ while gerenciador.tem_proximo():
         print("❌ Falha ao editar Qtde:", res_qtde["motivo"])
         continue  # pula para o próximo item sem travar o robô
 
-    auto_ocr.editar_valor_unitario_na_linha(valor_unitario_n8n=net_price, y_rel_click=res_qtde["y_rel_detectado"])
+    auto_ocr.editar_valor_unitario_na_linha(
+        valor_unitario_n8n=net_price, 
+        y_rel_click=res_qtde["y_rel_detectado"],
+        x_rel_vunit_click=x_edicao_vunit
+    )
 
 
 print("\n" + "=" * 60)
@@ -386,7 +459,7 @@ x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(59, 245) # botão grava, 
 pyautogui.click(x_abs, y_abs)
 # Tenta clicar usando OCR
 time.sleep(3)
-sys.exit(0)
+#sys.exit(0)
 sucesso = auto_ocr.clicar_menu_barra('Windows', pausar=2)
 
 sys.exit(0)

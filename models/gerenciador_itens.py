@@ -86,43 +86,7 @@ class GerenciadorItens:
             print(f"❌ Erro ao carregar fatura: {e}")
             return False
 
-    def enviar_nao_encontrados(self, itens_nao_encontrados):
-        """
-        Envia lista de itens não encontrados de volta ao N8N
-
-        Args:
-            itens_nao_encontrados: Lista de dicts com os itens não encontrados
-            base_url: URL base do N8N
-
-        Returns:
-            True se enviou com sucesso, False caso contrário
-        """
-        url = f"{self.base_url}/webhook/phinia-not-found"  # webhook para receber itens não encontrados
-
-        payload = {
-            "itens_nao_encontrados": itens_nao_encontrados,
-            "total": len(itens_nao_encontrados)
-        }
-
-        print(f"\n📤 Enviando {len(itens_nao_encontrados)} itens não encontrados ao N8N...")
-
-        try:
-            response = requests.post(
-                url,
-                json=payload,
-                headers={'Content-Type': 'application/json'},
-                timeout=10
-            )
-            response.raise_for_status()
-
-            print(f"✅ N8N recebeu os dados com sucesso!")
-            return True
-
-        except Exception as e:
-            print(f"❌ Erro ao enviar para N8N: {e}")
-            return False
-
-    def enviar_relatorio_final(self, itens_nao_encontrados, itens_sem_saldo, itens_encontrados):
+    def enviar_relatorio_consulta(self, itens_nao_encontrados, itens_sem_saldo, itens_encontrados):
         """
         Envia relatório final consolidado ao N8N contendo:
         - Itens não encontrados no sistema
@@ -262,6 +226,10 @@ class GerenciadorItens:
     # ─────────────────────────────────────────
     # ACESSO AOS CAMPOS DO ITEM
     # ─────────────────────────────────────────
+
+    def get_id(self, item):
+        """Retorna o ID único do item (se existir no payload)"""
+        return item.get('id')
 
     def get_part_number(self, item):
         """Retorna o Part Number do item já convertido pelo DE-PARA (campo part_number_sistema)"""

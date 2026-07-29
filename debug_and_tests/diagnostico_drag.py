@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # ============================================================
 # DIAGNÓSTICO DE DRAG — Testa o arraste da coluna Agrupamento
 # Mostra coordenadas absolutas e testa diferentes abordagens

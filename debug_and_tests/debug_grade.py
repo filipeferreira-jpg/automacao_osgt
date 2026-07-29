@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # debug_grade_monta_invoice.py
 # Foca a janela Import, captura a região da grade e roda OCR
 # Sem N8N, sem loop, sem preenchimento — só mapeamento.

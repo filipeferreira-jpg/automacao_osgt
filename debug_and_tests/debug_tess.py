@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # ============================================================
 # teste_popup_atencao_moeda.py
 # Testa detecção e fechamento do popup "Atenção! Moeda..."

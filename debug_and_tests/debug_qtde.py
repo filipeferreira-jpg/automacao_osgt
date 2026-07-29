@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from models.captura_tela import CapturaTela
 from models.automacao_cliques import AutomacaoOCR
 import time
@@ -10,8 +12,8 @@ captura = auto_ocr.captura
 # Use esse loop pra testar diferentes regiões até achar a perfeita
 regioes_teste = [
     # x_rel, y_rel, largura, altura, nome_arquivo
-    (470, 159, 300, 220, 'grid_save.png')
-    #(520, 160, 180, 120, 'grid_popup.png'),
+    #(720, 515, 83, 100, 'debug_qtde1024.png'),
+    (393, 290, 230, 130, 'linha.png'),
     #(940, 309, 71, 85, 'grid_montagem.png'),
     
 ]
@@ -23,5 +25,7 @@ for x, y, w, h, nome in regioes_teste:
         print(f"  💾 Salvo: {nome}")
     else:
         print("  ❌ Falha ao capturar região")
+
+
 
 print("\nAbra os arquivos qtde_teste_*.png e veja qual está centralizada na coluna 'Qtde.'")

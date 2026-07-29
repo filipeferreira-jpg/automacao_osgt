@@ -29,7 +29,7 @@ PREPROCESSING_QTDE = {
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
 # Carrega os itens
-if not gerenciador.carregar_do_n8n(fatura_id=63):
+if not gerenciador.carregar_do_n8n(fatura_id=126):
     raise Exception("❌ Falha ao carregar itens do N8N")
 # ─── LIMITADOR DE TESTE ───────────────────────────────────
 gerenciador.itens = gerenciador.itens #[:5]# ← Pega apenas os 5 primeiross
@@ -84,6 +84,7 @@ while gerenciador.tem_proximo():
     quantity     = gerenciador.get_quantity(item)
     net_price    = gerenciador.get_net_price(item)
     total_value  = gerenciador.get_total_value(item)
+    item_id      = gerenciador.get_id(item)
 
     print(f"\n{'─'*60}")
     print(f"📦 [{progresso['atual']}/{progresso['total']}] {part_number}")
@@ -121,6 +122,7 @@ while gerenciador.tem_proximo():
         print(f"➡️  Indo para o próximo item...")
         # ── Armazena o item completo na lista de não encontrados ──
         itens_nao_encontrados.append({
+            'id': item_id,
             'part_number': part_number,
             'num_ordem'  : num_ordem,
             'quantity'   : quantity,
@@ -131,6 +133,7 @@ while gerenciador.tem_proximo():
     
     # ── Item encontrado na grade ──
     itens_encontrados.append({
+        'id': item_id,
         'part_number': part_number,
         'num_ordem'  : num_ordem,
         'quantity'   : quantity,
@@ -180,6 +183,7 @@ while gerenciador.tem_proximo():
     else:
         print(f"❌ Divergência de quantidade para {part_number}: soma insuficiente.")
         itens_sem_saldo.append({
+            'id': item_id,
             'part_number'      : part_number,
             'num_ordem'        : num_ordem,
             'quantity'         : quantity,
@@ -202,7 +206,7 @@ print("="*60)
 
 # ── Envia relatório final consolidado ao N8N ──────────────
 if itens_nao_encontrados or itens_sem_saldo or itens_encontrados:
-    gerenciador.enviar_relatorio_final(
+    gerenciador.enviar_relatorio_consulta(
         itens_nao_encontrados=itens_nao_encontrados,
         itens_sem_saldo=itens_sem_saldo,
         itens_encontrados=itens_encontrados

@@ -69,7 +69,7 @@ campo_pw = wait.until(EC.visibility_of_element_located((By.ID, "password")))
 campo_pw.clear()
 #campo_pw.send_keys("Josafa2027abc@") # LOGIN KARINA
 #campo_pw.send_keys("Agnes2026c!!") # LOGIN DIEGO
-campo_pw.send_keys("Nathi2026!@#") # login nathalia
+campo_pw.send_keys("Nathi2028!@#") # login nathalia
 #campo_pw.send_keys("renata01") # user PHINIA TESTE
 #campo_pw.send_keys("Start@DT1oj13") # user PRODUCAO PHINIA
 time.sleep(3)  # aguarda 3 segundos para a próxima etapa

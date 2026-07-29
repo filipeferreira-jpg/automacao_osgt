@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # ============================================================
 # TESTE DE FUNÇÕES — automacao_cliques.py
 # Executa cada função individualmente para validar comportamento
