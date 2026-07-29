@@ -2,27 +2,46 @@
 # ROBÔ 2 — MONTAGEM DO RASCUNHO (SEM RETORNO AO N8N)
 # ============================================================
 import time
+import sys
 import pyautogui
 import pyperclip
 from models.gerenciador_itens import GerenciadorItens
 from models.automacao_cliques import AutomacaoOCR
 
+# mapeamento de regições para OCR
 
 # =========================
 # CONFIG (coordenadas)
 # =========================
-REGIAO_REGIME = (520, 160, 200, 100)  
-REGIAO_SAVE = (470, 159, 300, 220)
-REGIAO_QTDE = (885, 540, 90, 150)
-
-X_ORDEM = 342
+### REGIÃO ONDE SELECIONAMOS O REGIME ADUANEIRO NO - RASCUNHO DA FATURA
+#REGIAO_REGIME = (520, 160, 200, 100) #1366X768 - OK
+REGIAO_REGIME = (350, 160, 200, 100) #1024x768
+#### REGIÃO ONDE SE ENCONTRAM OS 3 CAMPOS QUE PRECISAMOS PREENCHER PARA SALVAR O RASCUNHO DA FATURA
+#### SÃO ELES : NUMERO FATURA, DATA FATURA E LOCAL CONDIÇÃO DE VENDA
+#REGIAO_SAVE = (470, 159, 300, 220) #1366X768- OK
+REGIAO_SAVE = (295, 159, 300, 220) #1024x768
+#### REGIÃO ONDE ESTÁ LOCALIZA A EXATAMENTE A GRADE DE QUANTIDADES,
+#### JÁ APLICADA O ARRASTO DA GRADE PARA AUMENTAR A COLUNA DE QUANTIDADES
+#REGIAO_QTDE = (885, 540, 90, 150) #1366X768- OK
+REGIAO_QTDE = (720, 540, 80, 70) #1024x768
+### REGIÃO ONDE ESTÁ LOCALIZADO BOTÃO OK NA MONTAGEM DO RASCUNHO DA FATURA
+#OK_RASCUNHO = (950, 639, 140, 45) #1366X768- OK
+OK_RASCUNHO = (780, 639, 120, 45) #1024x768
+#REG_INVOICE = (440, 130, 200, 180) #1366X768- OK
+REG_INVOICE = (280, 130, 200, 180) #1024x768
+### COORDENADAS PARA CLICAR VIA COORDENADAS NO CAMPO ORDEM
+#X_ORDEM = 342 #1366X768
+X_ORDEM = 191 #coordenadas 1024x768- OK
 Y_ORDEM = 494
-
-X_PARTNUMBER = 714
+### COORDENADAS PARA CLICAR VIA COORDENADAS NO CAMPO PART NUMBER
+#X_PARTNUMBER = 714 #1366X768- OK
+X_PARTNUMBER = 543 #1024x768
 Y_PARTNUMBER = 494
+### COORDENADAS PARA ARRASTAR A LINHA DA QTDE, MELHORA A VISUALIZAÇÃO PARA OCR
+#X_QTDE_HEADER = 948 #1366X768- OK
+Y_QTDE_HEADER = 525 #1366X768- OK
+X_QTDE_HEADER = 780 #1024x768
 
-X_QTDE_HEADER = 948
-Y_QTDE_HEADER = 525
 
 PREP_REGIME = {
     "amplify_factor": 3,
@@ -35,10 +54,10 @@ PREP_REGIME = {
 }
 
 PREPROCESSING_QTDE = {
-    'amplify_factor': 4,
+    'amplify_factor': 5,
     'grayscale': True,
-    'contrast': 2.6,
-    'threshold': 170,
+    'contrast': 2.2,
+    'threshold': 160,
     'whitelist': '0123456789,.',
     'psm': 7,
     'debug_filename_prefix': 'debug_qtde_ocr'
@@ -59,11 +78,11 @@ PREP_SAVE = {
 # =========================
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
-if not gerenciador.carregar_do_n8n(fatura_id=25):
+if not gerenciador.carregar_do_n8n(fatura_id=126): #PARA TESTES
     raise Exception("❌ Falha ao carregar itens do N8N")
 
 # limitador de teste
-gerenciador.itens = gerenciador.itens
+gerenciador.itens = gerenciador.itens#[:30]  # Processa apenas os primeiros 50 itens
 
 print(f"✅ {gerenciador.total_itens()} itens prontos para montar rascunho")
 print("=" * 60)
@@ -86,10 +105,65 @@ itens_selecionados = []
 num_ordem_fatura = gerenciador.get_num_ordem(gerenciador.item_atual())
 auto_ocr.preencher_campo_por_clipboard(X_ORDEM, Y_ORDEM, num_ordem_fatura, pausar=1)
 
-print("\nAjustando largura da coluna 'Quantidade' na grade...")
-auto_ocr.arrastar_coluna_quantidade(955, 525, 972, 525, duracao_arraste=0.3, pausar=0.5)
-auto_ocr.clicar_coordenadas_multiclick(1079, 392, clicks=4, intervalo=0.5, pausar=0.5)
+# --- AJUSTE DINÂMICO DE ARRASTE E CLIQUE DE ORDENAÇÃO NA TABELA INFERIOR ---
+print("🔍 Detectando cabeçalho 'Qtde.' na tabela inferior...")
+regiao_inferior = (200, 500, 700, 45) # Região aproximada do cabeçalho da Tabela Inferior (Y ≈ 525)
+res_inf = auto_ocr.encontrar_texto("Qtde", confianca_minima=10, regiao=regiao_inferior, similaridade_minima=0.55)
 
+if res_inf:
+    x_header_inf = res_inf['x_rel']
+    y_header_inf = res_inf['y_rel']
+    x_divisoria_inf = x_header_inf + 40 # divisória direita
+    x_destino_inf = x_divisoria_inf + 17 # alarga a coluna em 17px para a direita
+    print(f"↔️ Executando arraste dinâmico inferior: de ({x_divisoria_inf}, {y_header_inf}) para ({x_destino_inf}, {y_header_inf})")
+    auto_ocr.arrastar_coluna_quantidade(x_divisoria_inf, y_header_inf, x_destino_inf, y_header_inf, duracao_arraste=0.3, pausar=0.5)
+    
+    # Atualiza as variáveis globais para a ordenação dinâmica
+    X_QTDE_HEADER = x_header_inf
+    Y_QTDE_HEADER = y_header_inf
+else:
+    print("⚠️ Não foi possível encontrar 'Qtde.' na tabela inferior. Usando fallbacks estáticos...")
+    auto_ocr.arrastar_coluna_quantidade(780, 525, 797, 525, duracao_arraste=0.3, pausar=0.5)
+    X_QTDE_HEADER = 780
+    Y_QTDE_HEADER = 525
+
+# Cliques para alinhar a grade "Itens da Fatura" (7 cliques aprovados)
+auto_ocr.clicar_coordenadas_multiclick(908, 392, clicks=7, intervalo=0.5, pausar=0.5) #coordenadas 1024x768
+
+# --- AJUSTE DINÂMICO DE ARRASTE ---
+print("🔍 Detectando cabeçalho 'Qtde.' para arraste dinâmico...")
+regiao_cabeçalho = (200, 275, 700, 45) # Região do cabeçalho da Tabela Superior (Y ≈ 300)
+res_sup = auto_ocr.encontrar_texto("Qtde", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.55)
+
+if res_sup:
+    x_divisoria = res_sup['x_rel'] - 40
+    y_cabeçalho = res_sup['y_rel']
+    x_destino = x_divisoria - 150 # Arraste dinâmico de 150 pixels aprovado
+    print(f"↔️ Executando arraste dinâmico: de ({x_divisoria}, {y_cabeçalho}) para ({x_destino}, {y_cabeçalho})")
+    auto_ocr.arrastar_coluna_quantidade(x_divisoria, y_cabeçalho, x_destino, y_cabeçalho, duracao_arraste=0.4, pausar=1.0)
+else:
+    print("⚠️ Não foi possível encontrar 'Qtde.' via OCR. Usando fallback estático...")
+    auto_ocr.arrastar_coluna_quantidade(654, 300, 504, 300, duracao_arraste=0.4, pausar=1.0)
+
+# --- CAPTURA DE COORDENADAS DINÂMICAS PARA EDIÇÃO ---
+print("🔍 Capturando novas coordenadas de edição pós-arraste...")
+auto_ocr.limpar_cache_ocr() # Limpa cache para ler o novo estado da tela
+
+res_qtde_atual = auto_ocr.encontrar_texto("Qtde", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.55)
+if res_qtde_atual:
+    x_edicao_qtde = res_qtde_atual['x_rel']
+    print(f"✓ Coluna 'Qtde.' detectada para clique em X = {x_edicao_qtde}")
+else:
+    x_edicao_qtde = 570 # Fallback seguro (660 - 90)
+    print(f"⚠️ 'Qtde.' não localizada pós-arraste. Usando fallback X = {x_edicao_qtde}")
+    
+res_vunit_atual = auto_ocr.encontrar_texto("Valor Unitário", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.80)
+if res_vunit_atual:
+    x_edicao_vunit = res_vunit_atual['x_rel']
+    print(f"✓ Coluna 'Valor Unitário' detectada para clique em X = {x_edicao_vunit}")
+else:
+    x_edicao_vunit = 742 # Fallback seguro (832 - 90)
+    print(f"⚠️ 'Valor Unitário' não localizado pós-arraste. Usando fallback X = {x_edicao_vunit}")
 # =========================
 # LOOP ITENS
 # =========================
@@ -103,6 +177,7 @@ while gerenciador.tem_proximo():
     net_price = gerenciador.get_net_price(item)
     total_value = gerenciador.get_total_value(item)
     num_ordem = gerenciador.get_num_ordem(item)
+    item_id = gerenciador.get_id(item)
 
     print(f"\n{'─' * 60}")
     print(f"🧾 [{progresso['atual']}/{progresso['total']}] PN: {part_number}")
@@ -110,6 +185,7 @@ while gerenciador.tem_proximo():
     print("─" * 60)
 
     # Preenche PN e busca
+    time.sleep(0.3)
     auto_ocr.preencher_campo_por_clipboard(X_PARTNUMBER, Y_PARTNUMBER, part_number, pausar=1)
     time.sleep(0.6)
     auto_ocr.clicar_em_texto('Busca', pausar=2, confianca_minima=25)
@@ -122,6 +198,7 @@ while gerenciador.tem_proximo():
         auto_ocr.fechar_popup_nenhum_item(pausar=1.0)
 
         itens_nao_encontrados.append({
+            'id': item_id,
             'part_number': part_number,
             'num_ordem': num_ordem,
             'quantity': quantity,
@@ -152,6 +229,7 @@ while gerenciador.tem_proximo():
         print(f"   N8N: {selecao.get('quantidade_n8n')} | Grade: {selecao.get('lista_grade')}")
 
         itens_sem_saldo.append({
+            'id': item_id,
             'part_number': part_number,
             'num_ordem': num_ordem,
             'quantity': quantity,
@@ -165,6 +243,7 @@ while gerenciador.tem_proximo():
     print(f"✅ Linha selecionada: idx={selecao['linha_index']} | qtde={selecao['qtde_lida']} | tipo={selecao['tipo_escolha']}")
 
     itens_selecionados.append({
+        'id': item_id,
         'part_number': part_number,
         'num_ordem': num_ordem,
         'quantity': quantity,
@@ -173,12 +252,38 @@ while gerenciador.tem_proximo():
         'tipo_escolha': selecao['tipo_escolha']
     })
 
+    # --- RECALCULA COORDENADAS DINÂMICAS PARA EDIÇÃO ---
+    # Limpa cache e relê os cabeçalhos para atualizar o X de Qtde e Valor Unitário.
+    # Isso evita quebras caso a barra de rolagem vertical surja no meio do loop e desloque as colunas.
+    auto_ocr.limpar_cache_ocr()
+    res_qtde_atual = auto_ocr.encontrar_texto("Qtde", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.55)
+    if res_qtde_atual:
+        x_edicao_qtde = res_qtde_atual['x_rel']
+        
+    res_vunit_atual = auto_ocr.encontrar_texto("Valor Unitário", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.80)
+    if res_vunit_atual:
+        x_edicao_vunit = res_vunit_atual['x_rel']
+
     #print(f"✅ PN {part_number} pronto para próxima etapa da montagem.")
     time.sleep(0.8)  # dá tempo da grade superior atualizar
-    res_qtde = auto_ocr.editar_qtde_ultimo_item_com_end(quantidade_n8n=quantity)
+    res_qtde = auto_ocr.editar_qtde_ultimo_item_com_end(
+        quantidade_n8n=quantity,
+        x_rel_qtde_click=x_edicao_qtde,
+        y_rel_foco_grade=330,  # Garante foco dentro das linhas de dados da grade superior (Y=330 em vez de Y=260)
+        x_rel_foco_grade=30    # Clica na coluna seletora da extrema esquerda (evita abrir dropdowns e digitação)
+    )
 
+    # BUG #3 corrigido: verificar res_qtde["ok"] ANTES de acessar "y_rel_detectado".
+    # Antes, um KeyError derrubava o loop inteiro se a detecção falhasse.
     if not res_qtde["ok"]:
         print("❌ Falha ao editar Qtde:", res_qtde["motivo"])
+        continue  # pula para o próximo item sem travar o robô
+
+    auto_ocr.editar_valor_unitario_na_linha(
+        valor_unitario_n8n=net_price, 
+        y_rel_click=res_qtde["y_rel_detectado"],
+        x_rel_vunit_click=x_edicao_vunit
+    )
 
 
 print("\n" + "=" * 60)
@@ -187,8 +292,16 @@ print(f"⚠️ Sem saldo (>=):          {len(itens_sem_saldo)}")
 print(f"❌ Não encontrados:         {len(itens_nao_encontrados)}")
 print("=" * 60)
 
+# Envia relatório ao N8N antes de continuar
+gerenciador.enviar_relatorio_montagem(
+    itens_nao_encontrados=itens_nao_encontrados,
+    itens_sem_saldo=itens_sem_saldo,
+    itens_selecionados=itens_selecionados
+)
+
 print("\n✅ ROBÔ 2 - RASCUNHO DA FATURA FINALIZADO (SEM RETORNO AO N8N).")
 
+#sys.exit(0)
 # Preenchimento do campo de Regime Aduaneiro 
 print("\nPreenchendo campos adicionais (Regime Aduaneiro)")
 res = auto_ocr.encontrar_texto(
@@ -209,28 +322,14 @@ if res:
     pyautogui.press("home")
     time.sleep(0.15)
     # Variação A: já abre e aceita digitação
-    pyautogui.press("1")
+    pyautogui.press("0") # SELECIONA DRAWBACK ISENÇÃO
     time.sleep(0.15)
     pyautogui.press("esc")
     time.sleep(0.15)
-    
-# mapeamento de regições para OCR
-REGIAO_SAVE = (470, 159, 300, 220)  # (x_rel, y_rel, w, h)
-OK_RASCUNHO = (950, 639, 140, 45)
-REG_INVOICE = (440, 130, 200, 180)
 
-# 2) Preprocessamento voltado pra TEXTO (não números)
-PREP_SAVE = {
-    "amplify_factor": 3,
-    "grayscale": True,
-    "contrast": 2.2,
-    "threshold": 185,
-    # sem whitelist (porque é texto)
-    "psm": 6,       # bloco de texto
-    "debug_filename_prefix": "debug_save"
-}
 
-# Usando método existente da classe AutomacaoOCR
+
+# TENTANDO CLICAR NO BOTÃO OK PARA SALVAR O RASCUNHO DOS PNS da fatura
 sucesso = auto_ocr.clicar_em_texto(
     texto_busca="OK",             # Busca por "OK"
     tipo_clique='single',
@@ -246,7 +345,8 @@ if sucesso:
 else:
     #fallback para clique fixo caso OCR falhe (com limpeza de cache para próxima tentativa)
     print("OCR falhou, usando coordenadas fixas...")
-    x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(1015, 656)
+    #x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(1015, 656) # fallback 1366x768
+    x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(847, 656) # fallback 1024x768
     pyautogui.click(x_abs, y_abs)
     time.sleep(0.5)
     auto_ocr.limpar_cache_ocr()
@@ -254,8 +354,11 @@ else:
 # Tecla 'S' no popup que se abre para salvar o rascunho
 time.sleep(1.5)
 pyautogui.hotkey("s")
-time.sleep(2)
-
+time.sleep(0.8)
+#pyautogui.hotkey("s")
+#time.sleep(2)
+time.sleep(1.5)  # aguarda o popup aparecer, se for o caso
+auto_ocr.fechar_popup_atencao_moeda(pausar=2.0)
 # ETAPA PARA PREENCHIMENTO DE CAMPOS ADICIONAIS - NUMERO FATURA E DATA FATURA
 # Localiza o texto 'Invoice' para garantir que estamos na região certa antes de preencher os campos
 
@@ -350,31 +453,37 @@ if res_fatura:
 time.sleep(1)
 # Clicando botão 'Grava' rascunho fatura
 # OCR não pega aqui, pois é um ícone
-x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(230, 245)
+x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(230, 245) # botão grava, janela salva rascunho - 1366x768
+x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(59, 245) # botão grava, janela salva rascunho - 1366x768
 # botão 'Grava' da fatura
 pyautogui.click(x_abs, y_abs)
 # Tenta clicar usando OCR
 time.sleep(3)
+#sys.exit(0)
 sucesso = auto_ocr.clicar_menu_barra('Windows', pausar=2)
 
+sys.exit(0)
 if sucesso:
     print("\n✓ Clique em 'Windows' executado com sucesso!")
     time.sleep(2)
 else:
     print("\n⚠️  OCR não encontrou, tentando coordenadas fixas...")
     # Fallback: usa coordenadas fixas
-    x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(886, 34)
+    x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(886, 34) # fallback 1024x768 
+    #x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(886, 34) # fallback 1024x768
     pyautogui.click(x_abs, y_abs)
     time.sleep(2)
     print("✓ Clique executado com coordenadas fixas")
     
 #sucesso = auto_ocr.clicar_em_texto('Sair do Sistema', pausar=1.0)
-print("\n✓ Clicando botão 'Sair do Sistema'com coordenadas fixas")
-x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(926, 298)
+print("\n✓ Clicando botão 'Sair do Sistema'com coordenadas fixas") 
+#x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(926, 298) # 1366x768
+x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(756, 298) # 1024x768
 pyautogui.click(x_abs, y_abs)
 time.sleep(2)
 # COORDENADAS CONFIRMAÇÃO - REALMENTE QUER SAIR DO SISTEMA - BOTÃO SIM (641, 401)
 print("\n✓ Clicando botão 'Sim'com coordenadas fixas")
-x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(641, 401)
+#x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(641, 401) # 1366x768
+x_abs, y_abs = auto_ocr.captura.obter_posicao_absoluta(465, 401) # 1024x768
 pyautogui.click(x_abs, y_abs)
 time.sleep(2)

@@ -22,7 +22,7 @@ class GerenciadorItens:
         self.data_fatura = None
 
     # ─────────────────────────────────────────
-    # CARREGAMENTO
+    # CARREGAMENTO e ENVIO DE DADOS
     # ─────────────────────────────────────────
 
     def carregar_do_n8n(self, fatura_id):
@@ -86,43 +86,7 @@ class GerenciadorItens:
             print(f"❌ Erro ao carregar fatura: {e}")
             return False
 
-    def enviar_nao_encontrados(self, itens_nao_encontrados):
-        """
-        Envia lista de itens não encontrados de volta ao N8N
-
-        Args:
-            itens_nao_encontrados: Lista de dicts com os itens não encontrados
-            base_url: URL base do N8N
-
-        Returns:
-            True se enviou com sucesso, False caso contrário
-        """
-        url = f"{self.base_url}/webhook/phinia-not-found"  # webhook para receber itens não encontrados
-
-        payload = {
-            "itens_nao_encontrados": itens_nao_encontrados,
-            "total": len(itens_nao_encontrados)
-        }
-
-        print(f"\n📤 Enviando {len(itens_nao_encontrados)} itens não encontrados ao N8N...")
-
-        try:
-            response = requests.post(
-                url,
-                json=payload,
-                headers={'Content-Type': 'application/json'},
-                timeout=10
-            )
-            response.raise_for_status()
-
-            print(f"✅ N8N recebeu os dados com sucesso!")
-            return True
-
-        except Exception as e:
-            print(f"❌ Erro ao enviar para N8N: {e}")
-            return False
-
-    def enviar_relatorio_final(self, itens_nao_encontrados, itens_sem_saldo, itens_encontrados):
+    def enviar_relatorio_consulta(self, itens_nao_encontrados, itens_sem_saldo, itens_encontrados):
         """
         Envia relatório final consolidado ao N8N contendo:
         - Itens não encontrados no sistema
@@ -169,6 +133,53 @@ class GerenciadorItens:
             print(f"❌ Erro ao enviar relatório para N8N: {e}")
             return False
 
+    def enviar_relatorio_montagem(self, itens_nao_encontrados, itens_sem_saldo, itens_selecionados):
+        """
+        Envia relatório final da MONTAGEM DO RASCUNHO ao N8N.
+        Usa webhook separado para não sobrescrever o retorno do load_invoice.
+
+        Args:
+            itens_nao_encontrados: itens que não foram encontrados na grade
+            itens_sem_saldo: itens com quantidade insuficiente na grade
+            itens_selecionados: itens selecionados com sucesso
+
+        Returns:
+            True se enviou com sucesso, False caso contrário
+        """
+        url = f"{self.base_url}/webhook/phinia-relatorio-montagem"
+
+        payload = {
+            "fatura_id": self.fatura_id,
+            "origem": "monta_invoice",
+            "resumo": {
+                "total_selecionados"    : len(itens_selecionados),
+                "total_nao_encontrados" : len(itens_nao_encontrados),
+                "total_sem_saldo"       : len(itens_sem_saldo),
+            },
+            "itens_selecionados"    : itens_selecionados,
+            "itens_nao_encontrados" : itens_nao_encontrados,
+            "itens_sem_saldo"       : itens_sem_saldo,
+        }
+
+        print(f"\n📤 Enviando relatório de montagem ao N8N...")
+        print(f"   ✅ Selecionados:      {len(itens_selecionados)}")
+        print(f"   ❌ Não encontrados:   {len(itens_nao_encontrados)}")
+        print(f"   ⚠️  Sem saldo:        {len(itens_sem_saldo)}")
+
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
+            )
+            response.raise_for_status()
+            print(f"✅ N8N recebeu o relatório de montagem com sucesso!")
+            return True
+
+        except Exception as e:
+            print(f"❌ Erro ao enviar relatório de montagem: {e}")
+            return False
     # ─────────────────────────────────────────
     # ITERAÇÃO
     # ─────────────────────────────────────────
@@ -215,6 +226,10 @@ class GerenciadorItens:
     # ─────────────────────────────────────────
     # ACESSO AOS CAMPOS DO ITEM
     # ─────────────────────────────────────────
+
+    def get_id(self, item):
+        """Retorna o ID único do item (se existir no payload)"""
+        return item.get('id')
 
     def get_part_number(self, item):
         """Retorna o Part Number do item já convertido pelo DE-PARA (campo part_number_sistema)"""

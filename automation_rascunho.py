@@ -100,7 +100,8 @@ else:
     )
     print("\n⚠️  OCR não encontrou, tentando coordenadas fixas...")
     # Fallback: usa coordenadas fixas
-    x, y = captura.obter_posicao_absoluta(262, 70)
+    x, y = captura.obter_posicao_absoluta(262, 70) #1024x768
+    #x, y = captura.obter_posicao_absoluta(400, 70) #1366x768
     pyautogui.click(x, y)
     time.sleep(2)
     print("✓ Clique executado com coordenadas fixas")
@@ -125,6 +126,10 @@ if sucesso:
     #auto_ocr.captura.capturar(salvar=True, nome_arquivo='04_apos_clicar_mais.png')
 else:
     print("\n❌ Falha ao clicar no botão '+'")
+    x, y = captura.obter_posicao_absoluta(88, 151) # coordenadas fixas 1024x768
+    pyautogui.click(x, y)
+    time.sleep(2)
+    print(" Clique executado com coordenadas fixas")
 
 print("\n" + "="*60)
 print("✅ ETAPA 8 CONCLUÍDA")
@@ -147,6 +152,10 @@ if sucesso:
     #auto_ocr.captura.capturar(salvar=True, nome_arquivo='04_apos_clicar_composicao.png')
 else:
     print("\n❌ Falha ao clicar no menu 'COMPOSIÇÃO'")
+    x, y = captura.obter_posicao_absoluta(430, 150) # coordenadas fixas 1024x768
+    pyautogui.click(x, y)
+    time.sleep(2)
+    print(" Clique executado com coordenadas fixas")
 
 print("\n" + "="*60)
 print("✅ ETAPA 9 CONCLUÍDA")
@@ -169,6 +178,10 @@ if sucesso:
     #auto_ocr.captura.capturar(salvar=True, nome_arquivo='04_apos_clicar_composicao.png')
 else:
     print("\n❌ Falha ao clicar no botão 'ADIÇÃO' do menu 'COMPOSIÇÃO'")
+    x, y = captura.obter_posicao_absoluta(926, 201) # coordenadas fixas 1024x768
+    pyautogui.click(x, y)
+    time.sleep(2)
+    print(" Clique executado com coordenadas fixas")
 
 print("\n" + "="*60)
 print("✅ ETAPA 10 CONCLUÍDA")

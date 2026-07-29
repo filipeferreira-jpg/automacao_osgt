@@ -25,6 +25,13 @@ class AutomacaoOCR:
     """Automação inteligente usando OCR para localizar elementos"""
 
     def __init__(self, titulo_janela=None):
+        """
+        Inicializa a automação OCR. Se o título da janela for fornecido,
+        procura a janela correspondente e coloca em foco.
+
+        Args:
+            titulo_janela (str, optional): Título da janela a ser encontrada e focada.
+        """
         self.captura = CapturaTela()
         self.cache_ocr = {}  # Cache dos textos detectados
 
@@ -305,6 +312,11 @@ class AutomacaoOCR:
         return self.clicar_em_texto(nome_menu, tipo_clique='single', pausar=pausar, regiao=regiao_menu)
         
     def clicar_botao_toolbar(self, nome_botao, pausar=1.0, similaridade_minima=0.65):
+        """
+        Clica em um botão na barra de ferramentas usando OCR.
+        Como o OCR de ícones pode ser impreciso, ignora a confiança mínima
+        e tolera erros de leitura (similaridade).
+        """
         print(f"\n🔘 Clicando no botão: '{nome_botao}'")
         self.limpar_cache_ocr()
 
@@ -350,7 +362,7 @@ class AutomacaoOCR:
         # MÉTODO 1: OCR
         print("🔍 Tentando localizar botão '+' via OCR...")
         regiao_toolbar_interna = (230, 130, 100, 50) #coordenadas backups para resolução 1366x768 - janela menor (REVER ESSA REGIAO)
-        #regiao_toolbar_interna = (230, 130, 100, 50) #coordenadas backups para resolução 1920x1080 - janela maior
+        #regiao_toolbar_interna = (230, 130, 100, 50) #coordenadas backups para resolução 1024x768 - janela maior
         resultado = self.encontrar_texto('+', confianca_minima=20, regiao=regiao_toolbar_interna)
 
         if resultado:
@@ -362,8 +374,8 @@ class AutomacaoOCR:
 
         # MÉTODO 2: Coordenadas fixas
         print("⚠️  OCR não encontrou, usando coordenadas fixas...")
-        #x_abs, y_abs = self.captura.obter_posicao_absoluta(263, 150) #coordenadas backups para resolução 1920x1080 - janela maior
-        x_abs, y_abs = self.captura.obter_posicao_absoluta(263, 150) #coordenadas backups para resolução 1366x768 - janela menor
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(86, 148) #coordenadas backups para resolução 1024x768 - janela maior
+        #x_abs, y_abs = self.captura.obter_posicao_absoluta(263, 150) #coordenadas backups para resolução 1366x768 - janela menor
         print(f"🖱️  Clicando em ({x_abs}, {y_abs})...")
         pyautogui.click(x_abs, y_abs)
         time.sleep(pausar)
@@ -386,8 +398,9 @@ class AutomacaoOCR:
         print("🔍 Tentando localizar menu 'COMPOSIÇÃO' via OCR...")
 
         # Procura em uma região mais ampla (toda a barra superior da janela MDI)
-        regiao_toolbar_interna = (200, 120, 700, 80)
-
+        #regiao_toolbar_interna = (200, 120, 700, 80) # 1366x768
+        regiao_toolbar_interna = (240, 135, 500, 35) # 1024x768
+        
         resultado = self.encontrar_texto(
             'Composição',
             confianca_minima=20,
@@ -405,7 +418,8 @@ class AutomacaoOCR:
         print("⚠️  OCR não encontrou, usando coordenadas fixas...")
 
         # Suas coordenadas: (601, 150) relativo à janela Import -  - coordenadas capturadas através do script 'mapear_multiplos_elementos.py'
-        x_abs, y_abs = self.captura.obter_posicao_absoluta(601, 150)
+        #x_abs, y_abs = self.captura.obter_posicao_absoluta(601, 150) # 1366x768
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(429, 150)# 1024x768
 
         print(f"🖱️  Clicando em ({x_abs}, {y_abs})...")
         pyautogui.click(x_abs, y_abs)
@@ -428,8 +442,9 @@ class AutomacaoOCR:
         
         # ESTE SUBMENU VAMOS CLICAR DIRETO NA COORDENADA, POIS NÃO TEM TEXTO VISÍVEL PARA O OCR DETECTAR (É SÓ UM ÍCONE DE ADIÇÃO MESMO)
         # Suas coordenadas: (1102, 208) relativo à janela Import - coordenadas capturadas através do script 'mapear_multiplos_elementos.py'
-        x_abs, y_abs = self.captura.obter_posicao_absoluta(1102, 208)
-
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(1102, 208) # 1366x768
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(924, 208) # 1024x768
+        
         print(f"🖱️  Clicando em ({x_abs}, {y_abs})...")
         pyautogui.click(x_abs, y_abs)
         time.sleep(pausar)
@@ -644,10 +659,11 @@ class AutomacaoOCR:
         # 1. Clica no campo
         print(f"🖱️  Clicando no campo...")
         pyautogui.click(x_abs, y_abs)  # clica campo
+        time.sleep(0.4)
         pyautogui.hotkey('ctrl', 'a') # Seleciona tudo
-        time.sleep(0.3) # pequena pausa para garantir que o campo processou o Ctrl+A
+        time.sleep(0.4) # pequena pausa para garantir que o campo processou o Ctrl+A
         pyautogui.press('delete')  # Apaga
-        time.sleep(0.3)
+        time.sleep(0.4)
 
         # 2. Copia valor para clipboard
         print(f"📋 Copiando '{valor}' para clipboard...")
@@ -662,95 +678,6 @@ class AutomacaoOCR:
         self.limpar_cache_ocr()
         print(f"✓ Campo preenchido via clipboard!")
         return True
-      
-    def preencher_campo_clipboard(self, x_rel, y_rel, valor, pausar=0.5):
-        valor_str = str(valor).strip()
-        print(f"\n📋 Preenchendo campo via clipboard com '{valor_str}'...")
-
-        if not self.captura.janela_atual:
-            print("❌ Nenhuma janela principal selecionada")
-            return False
-
-        x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel, y_rel)
-
-        # 1. Reseta clipboard
-        pyperclip.copy('')
-        time.sleep(0.2)
-
-        # 2. Foca no campo
-        pyautogui.click(x_abs, y_abs)
-        time.sleep(0.4)
-
-        # 3. Limpa o campo
-        pyautogui.hotkey('ctrl', 'a')
-        time.sleep(0.2)
-        pyautogui.press('delete')
-        time.sleep(0.2)
-
-        # 4. Clica de novo para garantir foco
-        pyautogui.click(x_abs, y_abs)
-        time.sleep(0.3)
-
-        # 5. Copia valor para clipboard
-        pyperclip.copy(valor_str)
-        time.sleep(0.4)
-
-        # 6. ✅ Cola via win32com no lugar do pyautogui
-        shell = win32com.client.Dispatch("WScript.Shell")
-        shell.SendKeys("^v")
-        time.sleep(pausar)
-
-        self.limpar_cache_ocr()
-        print(f"✓ Campo preenchido com '{valor_str}'!")
-        return True
-
-    def digitar_texto_devagar(self, texto, delay_entre_chars=0.15):
-        """
-        Digita texto caractere por caractere com delay
-        Método genérico para usar em qualquer campo
-
-        Args:
-            texto: Texto a digitar
-            delay_entre_chars: Delay em segundos entre cada caractere
-        """
-        print(f"⌨️  Digitando '{texto}' (devagar, delay={delay_entre_chars}s)...")
-        texto_str = str(texto)
-
-        for i, char in enumerate(texto_str):
-            # Trata caracteres especiais
-            if char == '-':
-                pyautogui.press('minus')
-            elif char == '_':
-                pyautogui.press('underscore')
-            elif char == '/':
-                pyautogui.press('slash')
-            elif char == '.':
-                pyautogui.press('period')
-            elif char == ',':
-                pyautogui.press('comma')
-            elif char == ' ':
-                pyautogui.press('space')
-            elif char.isdigit():
-                pyautogui.press(char)
-            elif char.isalpha():
-                if char.isupper():
-                    pyautogui.hotkey('shift', char.lower())
-                else:
-                    pyautogui.press(char)
-            else:
-                # Para outros caracteres, tenta escrever diretamente
-                try:
-                    pyautogui.write(char, interval=0)
-                except:
-                    print(f"  ⚠️  Caractere '{char}' ignorado")
-
-            time.sleep(delay_entre_chars)
-
-            # Mostra progresso a cada 5 caracteres
-            if (i + 1) % 5 == 0 or (i + 1) == len(texto_str):
-                print(f"  ✓ Progresso: {i+1}/{len(texto_str)} caracteres")
-
-        print(f"✓ Texto '{texto}' digitado completamente!")
     
     def preencher_campo_por_coordenadas(self, x_rel, y_rel, valor, delay=0.15, 
                                     limpar_antes=True, pausar=0.5):
@@ -818,11 +745,25 @@ class AutomacaoOCR:
         # Região exata do popup baseada na sua imagem:
         # O popup aparece aproximadamente entre:
         # x: 560, y: 290, largura: 240, altura: 130
-        regiao_popup = (560, 290, 240, 130)
+        #regiao_popup = (560, 290, 240, 130) 1366x768
+        regiao_popup = (380, 290, 240, 130) #1024x768
+
+        #configurações de pre processamento para melhorar OCR
+        preprocessing_config = {
+            'grayscale': True,
+            'contrast': 1.5,
+            'threshold': 180,
+            'amplify_factor': 2,
+            'debug_filename_prefix': 'debug_popup_nenhum_item_ocr'
+        }
 
         # Força nova captura para pegar estado atual da tela
         self.limpar_cache_ocr()
-        resultado_ocr = self.processar_ocr(regiao=regiao_popup, forcar_nova=True)
+        resultado_ocr = self.processar_ocr(
+            regiao=regiao_popup,
+            forcar_nova=True,
+            preprocessing_config=preprocessing_config
+        )
 
         if not resultado_ocr:
             print("❌ Falha ao capturar região do popup")
@@ -834,8 +775,13 @@ class AutomacaoOCR:
         textos_alvo = [
             'nenhum item foi encontrado',
             'nenhum item',
+            'Nenhum',
             'encontrado',
-            'atenção'
+            'atencao',
+            'atenção',
+            'Atenção!',
+            'DK',
+            'ok'
         ]
 
         # Coleta todos os textos detectados na região
@@ -893,12 +839,13 @@ class AutomacaoOCR:
         # olhando o print, o popup fica mais ou menos no centro da janela.
         # Ajuste fino depois se quiser, mas isso já restringe bem a busca.
         # x, y, largura, altura
-        #regiao_popup = (430, 210, 500, 330)
-        regiao_popup = (560, 290, 240, 130)
+        regiao_popup = (380, 290, 240, 130) #1024x768
+        #regiao_popup = (560, 290, 240, 130) #1366x768
 
         # Região menor focada no botão OK dentro do popup
         # (baseado no print: botão está na parte inferior do popup)
-        regiao_ok = (620, 380, 140, 45)
+        #regiao_ok = (620, 380, 140, 45) #1366x768 - coordenadas aproximadas do botão OK dentro do popup
+        regiao_ok = (440, 380, 120, 45) #1024x768 - coordenadas aproximadas do botão OK dentro do popup
 
         # Primeiro, tenta na região menor do botão OK
         self.limpar_cache_ocr()
@@ -907,8 +854,8 @@ class AutomacaoOCR:
             tipo_clique='single',
             pausar=pausar,
             regiao=regiao_ok,
-            confianca_minima=25,          # texto pequeno, confiança costuma ser baixa
-            similaridade_minima=0.65,     # tolera variações: 0K, CK, etc.
+            confianca_minima=10,          # texto pequeno, confiança costuma ser baixa
+            similaridade_minima=0.5,     # tolera variações: 0K, CK, etc.
             tentativas=2
         )
 
@@ -935,7 +882,8 @@ class AutomacaoOCR:
         print("⚠️  OCR não encontrou 'OK', usando coordenadas fixas...")
 
         # Essas coordenadas são relativas à janela Import; ajuste fino se necessário
-        x_abs, y_abs = self.captura.obter_posicao_absoluta(680, 400)
+        #x_abs, y_abs = self.captura.obter_posicao_absoluta(680, 400) # 1366x768 CLICK POPUP - BOTÃO - OK (item não encontrado)
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(509, 397) # 1024x768 CLICK POPUP - BOTÃO - OK (item não encontrado)
         print(f"🖱️  Clicando em OK ({x_abs}, {y_abs})...")
 
         pyautogui.click(x_abs, y_abs)
@@ -972,6 +920,95 @@ class AutomacaoOCR:
                 print(f"  💾 Salvo: {nome} | Região: ({x}, {y}, {w}, {h})")
 
         print("✓ Abra os arquivos de debug para confirmar as coordenadas do popup")
+
+    def fechar_popup_atencao_moeda(self, pausar=1.0):
+        """
+        Detecta e fecha o popup 'Atenção! Moeda da Fatura é diferente...'
+        clicando em OK. Tenta via OCR, fallback em coordenadas fixas.
+
+        Returns:
+            True  -> popup detectado e fechado
+            False -> popup não estava visível
+        """
+        print("\n🔍 Verificando popup 'Atenção! Moeda...'...")
+
+        if not self.captura.janela_atual:
+            print("❌ Nenhuma janela principal selecionada")
+            return False
+
+        # Região do popup — estrutura similar ao popup 'nenhum item'
+        # ajuste fino se necessário conforme resolução
+        regiao_popup = (380, 290, 300, 160)  # 1024x768
+
+        self.limpar_cache_ocr()
+        resultado_ocr = self.processar_ocr(regiao=regiao_popup, forcar_nova=True)
+
+        if not resultado_ocr:
+            return False
+
+        data = resultado_ocr['data']
+
+        # Textos que identificam este popup específico
+        textos_alvo = [
+            'moeda',
+            'fatura',
+            'diferente',
+            'atenção',
+            'atencao',
+            'ordem'
+        ]
+
+        textos_detectados = []
+        for i in range(len(data['text'])):
+            texto = data['text'][i].strip()
+            if not texto:
+                continue
+            try:
+                conf = int(data['conf'][i])
+            except ValueError:
+                conf = 0
+            if conf < 10:
+                continue
+            textos_detectados.append(texto.lower())
+            print(f"  📝 OCR detectou: '{texto}' (conf: {conf}%)")
+
+        texto_completo = ' '.join(textos_detectados)
+        popup_detectado = any(alvo in texto_completo for alvo in textos_alvo)
+
+        if not popup_detectado:
+            print("ℹ️  Popup 'Atenção Moeda' não detectado")
+            return False
+
+        print("✓ Popup 'Atenção! Moeda...' detectado! Clicando em OK...")
+
+        # Região do botão OK dentro do popup
+        regiao_ok = (440, 380, 180, 55)  # 1024x768
+
+        self.limpar_cache_ocr()
+        sucesso = self.clicar_em_texto(
+            texto_busca='OK',
+            tipo_clique='single',
+            pausar=pausar,
+            regiao=regiao_ok,
+            confianca_minima=10,
+            similaridade_minima=0.5,
+            tentativas=2
+        )
+
+        if sucesso:
+            print("✓ Popup 'Atenção Moeda' fechado via OCR!")
+            self.limpar_cache_ocr()
+            return True
+
+        # Fallback coordenadas fixas
+        print("⚠️  OCR não encontrou 'OK', usando coordenadas fixas...")
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(509, 397)  # 1024x768
+        pyautogui.click(x_abs, y_abs)
+        time.sleep(pausar)
+        self.limpar_cache_ocr()
+        print("✓ Popup 'Atenção Moeda' fechado via coordenadas fixas!")
+        return True
+
 
     def ler_quantidades_grade(self, regiao_qtde, confianca_minima=8, preprocessing_config=None):
         """
@@ -1143,7 +1180,8 @@ class AutomacaoOCR:
         return quantidades_grade
     
     def ordenar_e_verificar_quantidade(self,
-                                        x_qtde_header, y_qtde_header,
+                                        x_qtde_header,
+                                        y_qtde_header,
                                         quantidade_n8n,
                                         regiao_qtde, # Novo parâmetro
                                         tolerancia=0.01,
@@ -1253,6 +1291,11 @@ class AutomacaoOCR:
         margem_superior=0,
         margem_inferior=0
     ):
+        """
+        Ordena a coluna de quantidades e verifica se existe um saldo na grade
+        que seja maior ou igual à quantidade exigida, processando os itens por linhas.
+        Retorna informações sobre o resultado e a quantidade encontrada.
+        """
         q_n8n = self._to_float(quantidade_n8n)
         ultima_lista = []
 
@@ -1374,8 +1417,16 @@ class AutomacaoOCR:
 
         print(f"🖱️  Clicando e arrastando de ({x_inicio_abs}, {y_inicio_abs}) para ({x_fim_abs}, {y_fim_abs})...")
 
-        pyautogui.moveTo(x_inicio_abs, y_inicio_abs) # Move o mouse para o ponto inicial
-        pyautogui.dragTo(x_fim_abs, y_fim_abs, duration=duracao_arraste, button='left') # Clica, segura e arrasta
+        # Sequência explícita de drag para funcionar corretamente no Citrix (ambiente virtualizado).
+        # pyautogui.dragTo() após moveTo() sem pausa fazia o mouseDown antes do Citrix
+        # processar a nova posição do mouse, resultando em arraste saindo do ponto errado.
+        pyautogui.moveTo(x_inicio_abs, y_inicio_abs, duration=0.2)  # move com duração para Citrix registrar
+        time.sleep(0.15)                                              # aguarda Citrix processar a posição
+        pyautogui.mouseDown(button='left')                           # pressiona o botão explicitamente
+        time.sleep(0.15)                                              # aguarda o mouseDown ser registrado
+        pyautogui.moveTo(x_fim_abs, y_fim_abs, duration=duracao_arraste)  # arrasta até o destino
+        time.sleep(0.1)                                               # pequena pausa antes de soltar
+        pyautogui.mouseUp(button='left')                             # solta o botão
 
         time.sleep(pausar)
         self.limpar_cache_ocr()
@@ -1485,7 +1536,7 @@ class AutomacaoOCR:
 
         return str(int(q_arred))
     
-    def _extrair_candidatos_ocr_da_faixa(self, regiao_faixa, confianca_minima=5, preprocessing_config=None):
+    def _extrair_candidatos_ocr_da_faixa(self, regiao_faixa, confianca_minima=0, preprocessing_config=None):
         """
         Executa OCR em uma faixa única da coluna Qtde. e retorna candidatos válidos.
         """
@@ -1916,6 +1967,29 @@ class AutomacaoOCR:
         self.limpar_cache_ocr()
         return True
 
+    def _somar_quantidades_grade(self, lista_grade):
+        """Soma segura dos valores positivos da grade."""
+        return sum(self._to_float(q, default=0.0) for q in (lista_grade or []) if self._to_float(q, default=0.0) > 0)
+
+    def _escolher_linha_unica_para_subida(self, lista_grade):
+        """
+        Escolhe UMA única linha para subir quando validação ocorrer por soma.
+        Regra: maior quantidade da grade (desempate pelo primeiro índice).
+        """
+        melhor_idx = None
+        melhor_q = -1.0
+
+        for i, q in enumerate(lista_grade or []):
+            qf = self._to_float(q, default=0.0)
+            if qf > melhor_q:
+                melhor_q = qf
+                melhor_idx = i
+
+        if melhor_idx is None or melhor_q <= 0:
+            return None
+
+        return {"index": melhor_idx, "qtde": melhor_q, "tipo": "maior_disponivel"}
+    
     def selecionar_linha_com_saldo_por_qtde(self,
                                         x_qtde_header, y_qtde_header,
                                         quantidade_n8n,
@@ -1928,12 +2002,13 @@ class AutomacaoOCR:
                                         margem_superior=0,
                                         margem_inferior=0,
                                         offset_click_x=20,
-                                        offset_click_y=0):
+                                        offset_click_y=0,
+                                        considerar_soma_quando_sem_linha=True):
         """
         ROBÔ 2:
-        - tenta ordenar (double) + ler + escolher linha >= N8N
-        - repete a ordenação se ainda não encontrar linha válida
-        - ao selecionar, clica a seta (670,430)
+        1) tenta linha individual >= N8N
+        2) se não achar, valida por soma da grade
+        3) se soma atender, sobe APENAS UMA linha (maior disponível)
         """
         q_n8n = self._to_float(quantidade_n8n)
         ultima_lista = []
@@ -1941,11 +2016,11 @@ class AutomacaoOCR:
         for tentativa in range(1, max_tentativas_ordenacao + 1):
             print(f"\n🔃 [ROBÔ 2] Tentativa {tentativa}/{max_tentativas_ordenacao} — ordenar (double) + ler + escolher...")
 
-            # 1) Ordena (no seu sistema TEM que ser double)
+            # 1) Ordena
             self.clicar_coordenadas_fixas(x_qtde_header, y_qtde_header, tipo_clique='double', pausar=0.7)
             time.sleep(1)
 
-            # 2) Lê a lista
+            # 2) Lê grade
             lista_grade = self._ler_e_processar_quantidades_grade_por_linhas(
                 regiao_qtde=regiao_qtde,
                 confianca_minima=confianca_minima_ocr,
@@ -1962,18 +2037,33 @@ class AutomacaoOCR:
                 print("   ⚠️ OCR vazio; tentando ordenar/ler de novo...")
                 continue
 
-            # 3) Escolhe linha >= N8N
+            # 3) Regra principal: linha individual >= N8N
             escolha = self.escolher_linha_por_qtde_maior_ou_igual(
                 lista_grade=lista_grade,
                 quantidade_n8n=q_n8n,
                 tolerancia=tolerancia
             )
 
+            modo_validacao = "linha_individual"
+            motivo = None
+
+            # 4) Fallback por soma (sem subir 2 linhas)
+            if not escolha and considerar_soma_quando_sem_linha:
+                soma_total = self._somar_quantidades_grade(lista_grade)
+                print(f"   ∑ Soma da grade: {soma_total} | N8N: {q_n8n}")
+
+                if soma_total >= (q_n8n - tolerancia):
+                    escolha = self._escolher_linha_unica_para_subida(lista_grade)
+                    modo_validacao = "soma_grade_selecao_unica"
+                    motivo = "Sem linha individual >= N8N; soma atende. Subida única aplicada."
+                    if escolha:
+                        escolha["tipo"] = "soma_grade_maior_disponivel"
+
             if not escolha:
-                print("   ⚠️ Nenhuma linha >= N8N nesta leitura; tentando reordenar...")
+                print("   ⚠️ Nenhuma linha válida e soma insuficiente; tentando reordenar...")
                 continue
 
-            # 4) Clica na linha
+            # 5) Clica na linha escolhida (sempre uma só)
             clicou = self.clicar_linha_na_coluna(
                 regiao_coluna=regiao_qtde,
                 indice_linha=escolha["index"],
@@ -1989,14 +2079,16 @@ class AutomacaoOCR:
 
             time.sleep(1)
 
-            # 5) Clica a seta para subir PN para a grade superior
+            # 6) Seta para subir PN
             self.clicar_coordenadas_fixas(670, 430, tipo_clique='single', pausar=0.8)
 
             return {
                 "ok": True,
-                "motivo": None,
+                "motivo": motivo,
+                "modo_validacao": modo_validacao,
                 "quantidade_n8n": q_n8n,
                 "lista_grade": lista_grade,
+                "soma_grade": self._somar_quantidades_grade(lista_grade),
                 "linha_index": escolha["index"],
                 "qtde_lida": escolha["qtde"],
                 "tipo_escolha": escolha["tipo"],
@@ -2005,9 +2097,11 @@ class AutomacaoOCR:
 
         return {
             "ok": False,
-            "motivo": f"Falhou após {max_tentativas_ordenacao} tentativas (ordenar/ler/selecionar)",
+            "motivo": f"Falhou após {max_tentativas_ordenacao} tentativas (ordenar/ler/selecionar/somar)",
+            "modo_validacao": "falha",
             "quantidade_n8n": q_n8n,
-            "lista_grade": ultima_lista
+            "lista_grade": ultima_lista,
+            "soma_grade": self._somar_quantidades_grade(ultima_lista)
         }
         
     def clicar_coordenadas_multiclick(self, x_rel, y_rel, clicks=4, intervalo=0.08, pausar=0.3):
@@ -2119,21 +2213,32 @@ class AutomacaoOCR:
     def editar_qtde_ultimo_item_com_end(
         self,
         quantidade_n8n,
-        x_rel_foco_grade=321, y_rel_foco_grade=320,
+        #x_rel_foco_grade=321, y_rel_foco_grade=320, #1366x768
+        # BUG #2 corrigido: (240, 310) caía na barra de rolagem horizontal quando o 4º item entrava
+        # na grade e o conteúdo das colunas ficava mais largo (ex.: Valor Total 1.498,6000000).
+        # Agora aponta para o meio da área de conteúdo da grade, longe da barra de rolagem.
+        x_rel_foco_grade=150, y_rel_foco_grade=260, #1024x768
 
         # Recomendo: recorte de uma coluna larga (ex.: Part Number),
         # onde o preto fica “bem sólido”. Ajuste conforme seu mapeamento.
-        regiao_para_detectar_destaque=(240, 309, 600, 140),
+        #regiao_para_detectar_destaque=(240, 309, 600, 140), # 1366x768
+        regiao_para_detectar_destaque=(80, 309, 762, 90), # 1024x768
 
         # Clique numa coluna “segura” (não-Qtde) na linha destacada, se precisar.
         # Se você realmente precisa clicar em Qtde, mantenha x_rel_qtde_click.
-        x_rel_qtde_click=971,
+        #x_rel_qtde_click=971, # 1366x768
+        x_rel_qtde_click=660, # 1024x768
 
         pausar_pos_end=0.3,
-        pausar_entre_teclas=0.1,
+        pausar_entre_teclas=0.4,
         salvar_debug_detecao=False,
         tentativas_detecao=2
     ):
+        """
+        Vai para o último item da grade pressionando a tecla 'End',
+        detecta a linha destacada (highlight) analisando pixels escuros
+        e substitui a quantidade colando o valor do N8N na célula selecionada.
+        """
         if not self.captura.janela_atual:
             return {"ok": False, "motivo": "Nenhuma janela selecionada"}
 
@@ -2143,7 +2248,7 @@ class AutomacaoOCR:
 
         # Evita estar preso em modo edição
         pyautogui.press("esc")
-        time.sleep(0.05)
+        time.sleep(0.4)
 
         # END + detectar (com retentativa)
         det = None
@@ -2170,7 +2275,7 @@ class AutomacaoOCR:
         # Clique na Qtde (se isso abrir edição automaticamente, ok)
         x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel_qtde_click, y_rel_click)
         pyautogui.click(x_abs, y_abs)
-        time.sleep(0.10)
+        time.sleep(0.7)
 
         pyautogui.hotkey("ctrl", "a")
         time.sleep(pausar_entre_teclas)
@@ -2185,7 +2290,7 @@ class AutomacaoOCR:
         pyperclip.copy(quantidade_txt)
         time.sleep(0.05)
         pyautogui.hotkey("ctrl", "v")
-        time.sleep(0.5)
+        time.sleep(1.2)
 
         # ENTER salva
         #pyautogui.press("enter")
@@ -2194,6 +2299,54 @@ class AutomacaoOCR:
         self.limpar_cache_ocr()
         time.sleep(0.2)
         return {"ok": True, "motivo": None, "qtde_colada": quantidade_txt, "y_rel_detectado": y_rel_click, "segmento_local": det["segmento"], "score_escuro": det["score_escuro"]}
+
+    def editar_valor_unitario_na_linha(
+        self,
+        valor_unitario_n8n,
+        y_rel_click,
+        x_rel_vunit_click=832,   # 1024x768 — coluna Valor Unitário
+        pausar_entre_teclas=0.4
+    ):
+        """
+        Cola o Valor Unitário vindo da fatura na linha JA SELECIONADA da grade.
+
+        Deve ser chamado LOGO APOS editar_qtde_ultimo_item_com_end, passando
+        o y_rel_click retornado por ela:
+
+            res_qtde = self.editar_qtde_ultimo_item_com_end(quantidade_n8n=qtde)
+            if res_qtde["ok"]:
+                self.editar_valor_unitario_na_linha(
+                    valor_unitario_n8n=vunit,
+                    y_rel_click=res_qtde["y_rel_detectado"]
+                )
+
+        Nao pressiona END nem detecta linha novamente.
+        Apenas clica em X=832 no mesmo Y, seleciona, apaga e cola o valor.
+        """
+        if not self.captura.janela_atual:
+            return {"ok": False, "motivo": "Nenhuma janela selecionada"}
+
+        # Clique direto na coluna Valor Unitario — mesma linha ja selecionada
+        x_abs, y_abs = self.captura.obter_posicao_absoluta(x_rel_vunit_click, y_rel_click)
+        pyautogui.click(x_abs, y_abs)
+        time.sleep(0.6)  # Aumentado de 0.10 para 0.6 para dar tempo de abrir/focar a edição do campo
+
+        pyautogui.hotkey("ctrl", "a")
+        time.sleep(pausar_entre_teclas)
+        pyautogui.press("delete")
+        time.sleep(pausar_entre_teclas)
+
+        # Formata como decimal pt-BR (ex.: '3,0000000000') — sem arredondamento inteiro
+        valor_txt = self._formatar_quantidade_para_erp(valor_unitario_n8n)
+
+        pyperclip.copy(valor_txt)
+        time.sleep(0.05)
+        pyautogui.hotkey("ctrl", "v")
+        time.sleep(1.2)
+
+        self.limpar_cache_ocr()
+        time.sleep(0.2)
+        return {"ok": True, "motivo": None, "vunit_colado": valor_txt, "y_rel_usado": y_rel_click}
     
     @staticmethod
     def data_iso_para_ddmmaaaa(data_iso: str) -> str:

@@ -100,7 +100,8 @@ else:
     )
     print("\n⚠️  OCR não encontrou, tentando coordenadas fixas...")
     # Fallback: usa coordenadas fixas
-    x, y = captura.obter_posicao_absoluta(262, 70)
+    x, y = captura.obter_posicao_absoluta(262, 70) #1024x768
+    #x, y = captura.obter_posicao_absoluta(400, 70) #1366x768
     pyautogui.click(x, y)
     time.sleep(2)
     print("✓ Clique executado com coordenadas fixas")
@@ -124,11 +125,12 @@ if sucesso:
     # Captura tela após clicar (opcional)
     #auto_ocr.captura.capturar(salvar=True, nome_arquivo='04_apos_clicar_mais.png')
 else:
-    print("\n❌ Falha ao clicar no botão '+'")
+    print("\n Falha ao clicar no botão '+'")
+    x, y = captura.obter_posicao_absoluta(88, 151) # coordenadas fixas 1024x768
+    pyautogui.click(x, y)
+    time.sleep(2)
+    print(" Clique executado com coordenadas fixas")
 
-print("\n" + "="*60)
-print("✅ ETAPA 8 CONCLUÍDA")
-print("="*60)
 # ============================================================
 # CÉLULA 9: CLICAR NO MENU COMPOSIÇÃO PARA EDITAR OS ITENS
 # # ============================================================
@@ -147,6 +149,10 @@ if sucesso:
     #auto_ocr.captura.capturar(salvar=True, nome_arquivo='04_apos_clicar_composicao.png')
 else:
     print("\n❌ Falha ao clicar no menu 'COMPOSIÇÃO'")
+    x, y = captura.obter_posicao_absoluta(430, 150) # coordenadas fixas 1024x768
+    pyautogui.click(x, y)
+    time.sleep(2)
+    print(" Clique executado com coordenadas fixas")
 
 print("\n" + "="*60)
 print("✅ ETAPA 9 CONCLUÍDA")
@@ -169,17 +175,18 @@ if sucesso:
     #auto_ocr.captura.capturar(salvar=True, nome_arquivo='04_apos_clicar_composicao.png')
 else:
     print("\n❌ Falha ao clicar no botão 'ADIÇÃO' do menu 'COMPOSIÇÃO'")
+    x, y = captura.obter_posicao_absoluta(926, 201) # coordenadas fixas 1024x768
+    pyautogui.click(x, y)
+    time.sleep(2)
+    print(" Clique executado com coordenadas fixas")
 
 print("\n" + "="*60)
 print("✅ ETAPA 10 CONCLUÍDA")
 print("="*60)
 
 time.sleep(2)
-##################
-#Separação para chamar o script load_invoice.py para processar os itens e depois retornar o resultado para o N8N.
-##################
 # ============================================================
-# CHAMADA DO load_invoice.py
+# CHAMADA DO load_invoice.py - ESTE SCRIPT PESQUISA OS PART NUMBERS E RETORNA PARA O N8N A RELAÇÃO DE PART NUMBERS ENCONTRADOS E NÃO ENCONTRADOS
 # ============================================================
 print("\n📍 CHAMANDO load_invoice_new.py...")
 print("-"*60)
@@ -211,7 +218,8 @@ if sucesso:
 else:
     print("\n⚠️  OCR não encontrou, tentando coordenadas fixas...")
     # Fallback: usa coordenadas fixas
-    x, y = captura.obter_posicao_absoluta(886, 34)
+    #x, y = captura.obter_posicao_absoluta(886, 34)#COORDENADAS 1366X768
+    x, y = captura.obter_posicao_absoluta(892, 35) #COORDENADAS 1024X768
     pyautogui.click(x, y)
     time.sleep(2)
     print("✓ Clique executado com coordenadas fixas")
@@ -220,14 +228,20 @@ else:
 # CÉLULA 12: MENU BARRA - SAIR DO SISTEMA - 
 # ============================================================
 #sucesso = auto_ocr.clicar_em_texto('Sair do Sistema', pausar=1.0)
-x, y = captura.obter_posicao_absoluta(926, 298)
+print("✓ Clique 'Sair do Sistema' executado com coordenadas fixas")
+#x, y = captura.obter_posicao_absoluta(926, 298) #COORDENADAS 1366X768
+x, y = captura.obter_posicao_absoluta(834, 300) #COORDENADAS 1024X768
 pyautogui.click(x, y)
 time.sleep(2)
 # COORDENADAS CONFIRMAÇÃO - REALMENTE QUER SAIR DO SISTEMA - BOTÃO SIM (641, 401)
-x, y = captura.obter_posicao_absoluta(641, 401)
+print("✓ Clique Confirmação de saida 1 executado com coordenadas fixas")
+#x, y = captura.obter_posicao_absoluta(641, 401) #COORDENADAS 1366X768
+x, y = captura.obter_posicao_absoluta(461, 400) #COORDENADAS 1024X768
 pyautogui.click(x, y)
 time.sleep(2)
 # COORDENADAS BOTÃO 'NÃO' - CAIXA DIALOGO ATENÇÃO - SALVAR RASCUNHO DA FATURA - BOTÃO NÃO(682, 399)
-x, y = captura.obter_posicao_absoluta(682, 399)
+print("✓ Clique Confirmação de saida 2 executado com coordenadas fixas")
+#x, y = captura.obter_posicao_absoluta(682, 399) #COORDENADAS 1366X768
+x, y = captura.obter_posicao_absoluta(514, 401) #COORDENADAS 1024X768
 pyautogui.click(x, y)
 time.sleep(2)

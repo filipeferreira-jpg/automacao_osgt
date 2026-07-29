@@ -29,7 +29,7 @@ PREPROCESSING_QTDE = {
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
 # Carrega os itens
-if not gerenciador.carregar_do_n8n(fatura_id=126):
+if not gerenciador.carregar_do_n8n(fatura_id=42):
     raise Exception("❌ Falha ao carregar itens do N8N")
 # ─── LIMITADOR DE TESTE ───────────────────────────────────
 gerenciador.itens = gerenciador.itens #[:5]# ← Pega apenas os 5 primeiross
@@ -143,8 +143,8 @@ while gerenciador.tem_proximo():
     # ─────────────────────────────────────
     # LÓGICA - COMPARAR QUANTIDADE INDIVIDUAL DA GRADE x QUANTIDADE N8N COM ORDENAÇÃO
     # ─────────────────────────────────────
-    print("\n📊 Comparando SOMA da grade com quantidade N8N...")
-
+    print("\n📊 Comparando quantidade individual da grade com quantidade N8N...")
+          
     resultado_qtde = auto_ocr.ordenar_e_verificar_saldo_maior_ou_igual_por_linhas(
         x_qtde_header=X_QTDE_HEADER,
         y_qtde_header=Y_QTDE_HEADER,
@@ -159,40 +159,23 @@ while gerenciador.tem_proximo():
         margem_inferior=0
     )
 
-    lista_grade = resultado_qtde.get("lista_grade", []) or []
-    q_n8n = auto_ocr._to_float(quantity)
-    tolerancia = 0.01
-
-    # soma segura da grade
-    soma_grade = sum(
-        auto_ocr._to_float(q, default=0.0)
-        for q in lista_grade
-        if auto_ocr._to_float(q, default=0.0) > 0
-    )
-
-    # ✅ AJUSTE PRINCIPAL: "bate" se a soma ATINGE o valor do N8N
-    bate_soma = soma_grade >= (q_n8n - tolerancia)
-
-    print(f"   N8N: {q_n8n}")
-    print(f"   Grade: {lista_grade}")
-    print(f"   Soma grade: {soma_grade}")
-    print(f"   Bate soma (>=)? {'SIM' if bate_soma else 'NÃO'}")
-
-    if bate_soma:
-        print(f"✅ Quantidade OK para {part_number} (soma da grade atende).")
+    # --- NOVA LÓGICA DE VERIFICAÇÃO ---
+    if resultado_qtde['bate']: # Se encontrou pelo menos uma quantidade <= N8N
+        print(f"✅ Quantidade OK para {part_number}. Remessa encontrada: {resultado_qtde['quantidade_encontrada_grade']}.")
     else:
-        print(f"❌ Divergência de quantidade para {part_number}: soma insuficiente.")
+        print(f"❌ Nenhuma remessa na grade é igual ou menor que a quantidade N8N para {part_number}!")
+        print(f"   N8N: {resultado_qtde['quantidade_n8n']}")
+        print(f"   Quantidades na grade: {resultado_qtde['lista_grade']}")
         itens_sem_saldo.append({
             'id': item_id,
             'part_number'      : part_number,
             'num_ordem'        : num_ordem,
-            'quantity'         : quantity,
-            'net_price'        : net_price,
-            'total_value'      : total_value,
-            'qtde_n8n'         : q_n8n,
-            'qtde_soma_grade'  : soma_grade,
-            'lista_qtde_grade' : lista_grade,
-            'diferenca'        : round(soma_grade - q_n8n, 5)
+            'quantity'   : quantity,
+            'net_price'  : net_price,
+            'total_value': total_value,
+            'qtde_soma_grade'  : resultado_qtde['quantidade_encontrada_grade'], # Usar a quantidade que bateu ou 0.0
+            'lista_qtde_grade' : resultado_qtde['lista_grade'],
+            #'diferenca'        : resultado_qtde['diferenca']
         })
 
     print(f"✅ Item {part_number} processado!")

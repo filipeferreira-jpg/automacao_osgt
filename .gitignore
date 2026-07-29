@@ -17,10 +17,10 @@ __pycache__/
 logs/
 output/
 screenshots/
-.png
-.jpg
-.gif
-.jpeg
+*.png
+*.jpg
+*.gif
+*.jpeg
 
 # IDE / sistema
 .vscode/
