@@ -78,7 +78,7 @@ PREP_SAVE = {
 # =========================
 gerenciador = GerenciadorItens(base_url='https://n8n2.titoonline.com.br')
 
-if not gerenciador.carregar_do_n8n(fatura_id=126): #PARA TESTES
+if not gerenciador.carregar_do_n8n(fatura_id=129): #PARA TESTES
     raise Exception("❌ Falha ao carregar itens do N8N")
 
 # limitador de teste
@@ -157,7 +157,7 @@ else:
     x_edicao_qtde = 570 # Fallback seguro (660 - 90)
     print(f"⚠️ 'Qtde.' não localizada pós-arraste. Usando fallback X = {x_edicao_qtde}")
     
-res_vunit_atual = auto_ocr.encontrar_texto("Valor Unitário", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.80)
+res_vunit_atual = auto_ocr.encontrar_texto("Unitário", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.70)
 if res_vunit_atual:
     x_edicao_vunit = res_vunit_atual['x_rel']
     print(f"✓ Coluna 'Valor Unitário' detectada para clique em X = {x_edicao_vunit}")
@@ -260,7 +260,7 @@ while gerenciador.tem_proximo():
     if res_qtde_atual:
         x_edicao_qtde = res_qtde_atual['x_rel']
         
-    res_vunit_atual = auto_ocr.encontrar_texto("Valor Unitário", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.80)
+    res_vunit_atual = auto_ocr.encontrar_texto("Unitário", confianca_minima=10, regiao=regiao_cabeçalho, similaridade_minima=0.70)
     if res_vunit_atual:
         x_edicao_vunit = res_vunit_atual['x_rel']
 
